@@ -206,6 +206,18 @@ export async function fetchHomeFeed(
   return [...newsFeed, ...shareFeed].sort((a, b) => b.score - a.score)
 }
 
+// Fetch recent news for new users with no sign set (no compatibility scoring)
+export async function fetchTrendingFeed(limit = 40): Promise<FeedItem[]> {
+  const { data } = await supabase
+    .from('content_items')
+    .select('*')
+    .eq('source', 'news')
+    .order('classified_at', { ascending: false })
+    .limit(limit)
+
+  return (data ?? []).map((item) => ({ type: 'news', item: item as ContentItem, score: 50 }))
+}
+
 // Fetch a single content item by ID
 export async function fetchContentItem(id: string): Promise<ContentItem | null> {
   const { data, error } = await supabase

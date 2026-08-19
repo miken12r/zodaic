@@ -5,6 +5,24 @@ import { Profile, UserSignAffinity, Horoscope } from '@/types'
 import { fetchUserAffinities, fetchHoroscope, generateHoroscope, fetchFollowCounts } from '@/lib/api'
 import { SIGN_BY_ID } from '@/constants/signs'
 
+const isUS = Intl.DateTimeFormat().resolvedOptions().locale.startsWith('en-US')
+const DATE_FORMAT = isUS ? 'MM/DD/YYYY' : 'DD/MM/YYYY'
+
+function toDisplayDate(iso: string): string {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  if (!y || !m || !d) return iso
+  return isUS ? `${m}/${d}/${y}` : `${d}/${m}/${y}`
+}
+
+function toISODate(display: string): string {
+  const parts = display.split('/')
+  if (parts.length !== 3) return display
+  const [a, b, y] = parts
+  const [m, d] = isUS ? [a, b] : [b, a]
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+}
+
 function getZodaicSignId(birthDate: string): number | null {
   const date = new Date(birthDate)
   if (isNaN(date.getTime())) return null
@@ -49,7 +67,7 @@ export default function ProfileScreen() {
         setProfile(data)
         setUsername(data.username ?? '')
         setDisplayName(data.display_name ?? '')
-        setBirthDate(data.birth_date ?? '')
+        setBirthDate(toDisplayDate(data.birth_date ?? ''))
         if (data.primary_zodaic_sign_id) {
           let h = await fetchHoroscope(data.primary_zodaic_sign_id)
           if (!h) h = await generateHoroscope(data.primary_zodaic_sign_id, 'weekly')
@@ -63,20 +81,33 @@ export default function ProfileScreen() {
   async function saveProfile() {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) { setSaving(false); return }
 
-    const primary_zodaic_sign_id = birthDate ? getZodaicSignId(birthDate) : null
+    const isoDate = birthDate ? toISODate(birthDate) : null
+    const primary_zodaic_sign_id = isoDate ? getZodaicSignId(isoDate) : null
     const { error } = await supabase.from('profiles').upsert({
       id: user.id,
       username,
       display_name: displayName || null,
-      birth_date: birthDate || null,
+      birth_date: isoDate || null,
       ...(primary_zodaic_sign_id ? { primary_zodaic_sign_id } : {}),
     })
 
-    if (error) Alert.alert('Error', error.message)
-    else {
-      if (primary_zodaic_sign_id) setProfile((p) => p ? { ...p, primary_zodaic_sign_id } : p)
+    if (error) {
+      Alert.alert('Error', error.message)
+    } else {
+      const { data: updated } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      if (updated) {
+        setProfile(updated)
+        setUsername(updated.username ?? '')
+        setDisplayName(updated.display_name ?? '')
+        setBirthDate(toDisplayDate(updated.birth_date ?? ''))
+        if (updated.primary_zodaic_sign_id && updated.primary_zodaic_sign_id !== profile?.primary_zodaic_sign_id) {
+          let h = await fetchHoroscope(updated.primary_zodaic_sign_id)
+          if (!h) h = await generateHoroscope(updated.primary_zodaic_sign_id, 'weekly')
+          setHoroscope(h)
+        }
+      }
       Alert.alert('Saved', 'Your profile has been updated.')
     }
     setSaving(false)
@@ -136,10 +167,10 @@ export default function ProfileScreen() {
           style={styles.input}
           value={birthDate}
           onChangeText={setBirthDate}
-          placeholder="YYYY-MM-DD"
+          placeholder={DATE_FORMAT}
           placeholderTextColor="#555"
         />
-        <Text style={styles.hint}>Used to calculate your digital zodiac sign.</Text>
+        <Text style={styles.hint}>Enter as {DATE_FORMAT}. Used to calculate your digital zodiac sign.</Text>
 
         <TouchableOpacity style={styles.saveButton} onPress={saveProfile} disabled={saving}>
           <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save Profile'}</Text>

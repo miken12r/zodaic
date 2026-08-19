@@ -4,7 +4,7 @@ import SignDetailModal from '@/components/SignDetailModal'
 import UserProfileSheet from '@/components/UserProfileSheet'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '@/lib/supabase'
-import { fetchHoroscope, generateHoroscope, fetchHomeFeed, FeedItem, PortAilsResult } from '@/lib/api'
+import { fetchHoroscope, generateHoroscope, fetchHomeFeed, fetchTrendingFeed, FeedItem, PortAilsResult } from '@/lib/api'
 import { SIGN_BY_ID, ZODAIC_SIGNS } from '@/constants/signs'
 import { useFocusEffect, useRouter } from 'expo-router'
 
@@ -74,29 +74,35 @@ export default function HomeScreen() {
     const signId = profile?.primary_zodaic_sign_id ?? null
     setPrimarySignId(signId)
 
-    let scores: Record<number, number> = {}
-    if (signId) {
-      const cached = await getPortailsCache(`portails_${signId}`)
-      if (cached) {
-        scores = Object.fromEntries(cached.compatibility.map((c) => [c.sign_id, c.score]))
-      } else {
-        // Fallback to elemental scores
-        for (let i = 1; i <= 12; i++) {
-          if (i !== signId) scores[i] = elementalScore(signId, i)
-        }
-        let h = await fetchHoroscope(signId)
-        if (!h) h = await generateHoroscope(signId, 'weekly')
-      }
-      setCompatibilityScores(scores)
+    if (!signId) {
+      const items = await fetchTrendingFeed()
+      setFeedItems(items)
+      setLoading(false)
+      return
     }
 
-    const items = await fetchHomeFeed(user.id, signId ?? 1, scores)
+    let scores: Record<number, number> = {}
+    const cached = await getPortailsCache(`portails_${signId}`)
+    if (cached) {
+      scores = Object.fromEntries(cached.compatibility.map((c) => [c.sign_id, c.score]))
+    } else {
+      for (let i = 1; i <= 12; i++) {
+        if (i !== signId) scores[i] = elementalScore(signId, i)
+      }
+      let h = await fetchHoroscope(signId)
+      if (!h) h = await generateHoroscope(signId, 'weekly')
+    }
+    setCompatibilityScores(scores)
+
+    const items = await fetchHomeFeed(user.id, signId, scores)
     setFeedItems(items)
     setLoading(false)
   }
 
   useFocusEffect(useCallback(() => {
     setLoading(true)
+    setPrimarySignId(null)
+    setFeedItems([])
     load()
   }, []))
 
@@ -145,9 +151,19 @@ export default function HomeScreen() {
               <Text style={[styles.headerSignName, { color: primarySign.color }]}>{primarySign.name}</Text>
             </>
           ) : (
-            <Text style={styles.headerSignName}>Set up your profile</Text>
+            <Text style={styles.headerSignName}>Set up your profile →</Text>
           )}
         </TouchableOpacity>
+
+        {!primarySign && (
+          <TouchableOpacity style={styles.setupBanner} onPress={() => router.push('/(tabs)/profile')}>
+            <Text style={styles.setupBannerTitle}>✦ Discover your digital sign</Text>
+            <Text style={styles.setupBannerBody}>
+              Add your birth date to unlock a personalized feed ranked by your sign's compatibility.
+            </Text>
+            <Text style={styles.setupBannerCta}>Set up profile →</Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity style={styles.filterButton} onPress={() => setFilterModalVisible(true)}>
           <Text style={styles.filterButtonText}>
@@ -243,7 +259,11 @@ export default function HomeScreen() {
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>No content for this sign yet — try another or pull to refresh.</Text>
+            <Text style={styles.emptyText}>
+              {primarySign
+                ? 'No content for this sign yet — try another or pull to refresh.'
+                : 'No trending content yet — check back soon.'}
+            </Text>
           </View>
         }
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#9b59b6" />}
@@ -332,6 +352,13 @@ const styles = StyleSheet.create({
   headerLabel: { fontSize: 22, fontWeight: '800', color: '#fff' },
   headerSymbol: { fontSize: 22, marginRight: 4 },
   headerSignName: { fontSize: 22, fontWeight: '800', color: '#fff' },
+  setupBanner: {
+    backgroundColor: '#1a1a2e', borderRadius: 16, padding: 18,
+    marginBottom: 16, borderWidth: 1, borderColor: '#9b59b6',
+  },
+  setupBannerTitle: { color: '#9b59b6', fontSize: 14, fontWeight: '800', marginBottom: 6 },
+  setupBannerBody: { color: '#888', fontSize: 13, lineHeight: 20, marginBottom: 10 },
+  setupBannerCta: { color: '#9b59b6', fontSize: 13, fontWeight: '700' },
   filterButton: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: '#1a1a2e', borderRadius: 20, paddingHorizontal: 14,
