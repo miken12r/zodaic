@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { Profile, UserSignAffinity, Horoscope } from '@/types'
-import { fetchUserAffinities, fetchHoroscope, generateHoroscope } from '@/lib/api'
+import { fetchUserAffinities, fetchHoroscope, generateHoroscope, fetchFollowCounts } from '@/lib/api'
 import { SIGN_BY_ID } from '@/constants/signs'
 
 function getZodaicSignId(birthDate: string): number | null {
@@ -33,15 +33,18 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false)
   const [affinities, setAffinities] = useState<UserSignAffinity[]>([])
   const [horoscope, setHoroscope] = useState<Horoscope | null>(null)
+  const [followCounts, setFollowCounts] = useState<{ followers: number; following: number } | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return
       setUserId(user.id)
-      const [{ data }, affinityData] = await Promise.all([
+      const [{ data }, affinityData, counts] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', user.id).single(),
         fetchUserAffinities(user.id).catch(() => []),
+        fetchFollowCounts(user.id),
       ])
+      setFollowCounts(counts)
       if (data) {
         setProfile(data)
         setUsername(data.username ?? '')
@@ -93,6 +96,20 @@ export default function ProfileScreen() {
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
       </View>
+
+      {followCounts && (
+        <View style={styles.countsRow}>
+          <View style={styles.countItem}>
+            <Text style={styles.countNumber}>{followCounts.followers}</Text>
+            <Text style={styles.countLabel}>Followers</Text>
+          </View>
+          <View style={styles.countDivider} />
+          <View style={styles.countItem}>
+            <Text style={styles.countNumber}>{followCounts.following}</Text>
+            <Text style={styles.countLabel}>Following</Text>
+          </View>
+        </View>
+      )}
 
       <View style={styles.card}>
         <Text style={styles.label}>Username</Text>
@@ -183,6 +200,11 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   title: { fontSize: 28, fontWeight: '800', color: '#fff' },
   signOutText: { color: '#9b59b6', fontSize: 14, fontWeight: '600' },
+  countsRow: { flexDirection: 'row', backgroundColor: '#1a1a2e', borderRadius: 16, padding: 16, marginBottom: 20 },
+  countItem: { flex: 1, alignItems: 'center' },
+  countNumber: { color: '#fff', fontSize: 22, fontWeight: '800' },
+  countLabel: { color: '#555', fontSize: 12, marginTop: 2 },
+  countDivider: { width: 1, backgroundColor: '#2a2a3e', marginVertical: 4 },
   card: { backgroundColor: '#1a1a2e', borderRadius: 20, padding: 20, marginBottom: 16 },
   label: { color: '#9b59b6', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 },
   input: {

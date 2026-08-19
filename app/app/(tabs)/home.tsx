@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Image, Modal, ScrollView } from 'react-native'
 import SignDetailModal from '@/components/SignDetailModal'
+import UserProfileSheet from '@/components/UserProfileSheet'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '@/lib/supabase'
 import { fetchHoroscope, generateHoroscope, fetchHomeFeed, FeedItem, PortAilsResult } from '@/lib/api'
@@ -55,11 +56,14 @@ export default function HomeScreen() {
   const [filterSignIds, setFilterSignIds] = useState<Set<number>>(new Set())
   const [filterModalVisible, setFilterModalVisible] = useState(false)
   const [selectedSignId, setSelectedSignId] = useState<number | null>(null)
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const router = useRouter()
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+    setCurrentUserId(user.id)
 
     const { data: profile } = await supabase
       .from('profiles')
@@ -201,7 +205,9 @@ export default function HomeScreen() {
           activeOpacity={contentItem ? 0.8 : 1}
         >
           <View style={styles.shareHeader}>
-            <Text style={styles.shareUsername}>{profile?.display_name ?? profile?.username ?? 'Someone'}</Text>
+            <TouchableOpacity onPress={() => share.user_id && setSelectedUserId(share.user_id)}>
+              <Text style={styles.shareUsername}>{profile?.display_name ?? profile?.username ?? 'Someone'}</Text>
+            </TouchableOpacity>
             <Text style={styles.shareLabel}>shared</Text>
             {sign && (
               <TouchableOpacity onPress={() => setSelectedSignId(sign.id)}>
@@ -245,6 +251,13 @@ export default function HomeScreen() {
       />
 
       <SignDetailModal signId={selectedSignId} onClose={() => setSelectedSignId(null)} />
+      {currentUserId && (
+        <UserProfileSheet
+          userId={selectedUserId}
+          currentUserId={currentUserId}
+          onClose={() => setSelectedUserId(null)}
+        />
+      )}
 
       <Modal visible={filterModalVisible} transparent animationType="slide" onRequestClose={() => setFilterModalVisible(false)}>
         <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setFilterModalVisible(false)}>

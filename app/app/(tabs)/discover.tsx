@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert } from 'react-native'
 import SignDetailModal from '@/components/SignDetailModal'
+import UserProfileSheet from '@/components/UserProfileSheet'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { classifyContent, createShare, fetchTopUrlsForSign, fetchContentItem } from '@/lib/api'
+import { classifyContent, createShare, fetchTopUrlsForSign, fetchContentItem, fetchUsers, followUser, unfollowUser } from '@/lib/api'
 import { ContentItem } from '@/types'
 import { SIGN_BY_ID } from '@/constants/signs'
 import { supabase } from '@/lib/supabase'
@@ -41,11 +42,20 @@ export default function DiscoverScreen() {
   const [filteredUrls, setFilteredUrls] = useState<ContentItem[]>([])
   const [filteredLoading, setFilteredLoading] = useState(false)
   const [selectedSignId, setSelectedSignId] = useState<number | null>(null)
+  const [people, setPeople] = useState<{ id: string; username: string; display_name: string | null; primary_zodaic_sign_id: number | null; isFollowing: boolean }[]>([])
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
   const scrollRef = useRef<ScrollView>(null)
 
   useFocusEffect(useCallback(() => {
     AsyncStorage.getItem(HISTORY_KEY).then((raw) => {
       if (raw) setHistory(JSON.parse(raw))
+    })
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      setCurrentUserId(user.id)
+      fetchUsers(user.id).then(setPeople)
     })
     if (contentId) {
       fetchContentItem(contentId).then((item) => {
@@ -107,6 +117,21 @@ export default function DiscoverScreen() {
       Alert.alert('Error', 'Could not share this reading.')
     } finally {
       setSharing(false)
+    }
+  }
+
+  async function handleFollowToggle(person: typeof people[0]) {
+    if (!currentUserId) return
+    setTogglingId(person.id)
+    try {
+      if (person.isFollowing) {
+        await unfollowUser(currentUserId, person.id)
+      } else {
+        await followUser(currentUserId, person.id)
+      }
+      setPeople((prev) => prev.map((p) => p.id === person.id ? { ...p, isFollowing: !p.isFollowing } : p))
+    } finally {
+      setTogglingId(null)
     }
   }
 
@@ -252,7 +277,42 @@ export default function DiscoverScreen() {
           })}
         </View>
       )}
+      {people.length > 0 && (
+        <View style={styles.peopleSection}>
+          <Text style={styles.peopleTitle}>People</Text>
+          {people.map((person) => {
+            const sign = person.primary_zodaic_sign_id ? SIGN_BY_ID[person.primary_zodaic_sign_id] : null
+            return (
+              <View key={person.id} style={styles.personRow}>
+                <TouchableOpacity style={styles.personInfo} onPress={() => setSelectedUserId(person.id)}>
+                  <Text style={styles.personAvatar}>{sign?.symbol ?? '☽'}</Text>
+                  <View>
+                    <Text style={styles.personName}>{person.display_name ?? person.username}</Text>
+                    {sign && <Text style={[styles.personSign, { color: sign.color }]}>{sign.name}</Text>}
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.followButton, person.isFollowing && styles.followingButton]}
+                  onPress={() => handleFollowToggle(person)}
+                  disabled={togglingId === person.id}
+                >
+                  <Text style={[styles.followButtonText, person.isFollowing && styles.followingButtonText]}>
+                    {togglingId === person.id ? '...' : person.isFollowing ? 'Following' : 'Follow'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )
+          })}
+        </View>
+      )}
     </ScrollView>
+    {currentUserId && (
+      <UserProfileSheet
+        userId={selectedUserId}
+        currentUserId={currentUserId}
+        onClose={() => setSelectedUserId(null)}
+      />
+    )}
     </>
   )
 }
@@ -336,4 +396,15 @@ const styles = StyleSheet.create({
   historyName: { color: '#ddd', fontSize: 14, fontWeight: '600' },
   historyUrl: { color: '#555', fontSize: 11, marginTop: 2 },
   historySign: { fontSize: 11, fontWeight: '700' },
+  peopleSection: { marginTop: 8 },
+  peopleTitle: { color: '#9b59b6', fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 },
+  personRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a2e', borderRadius: 12, padding: 12, marginBottom: 8, gap: 10 },
+  personInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  personAvatar: { fontSize: 28 },
+  personName: { color: '#ddd', fontSize: 14, fontWeight: '600' },
+  personSign: { fontSize: 11, fontWeight: '700', marginTop: 2 },
+  followButton: { backgroundColor: '#9b59b6', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 6 },
+  followingButton: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#9b59b6' },
+  followButtonText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  followingButtonText: { color: '#9b59b6' },
 })

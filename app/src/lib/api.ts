@@ -230,6 +230,29 @@ export async function fetchTopUrlsForSign(signId: number, minConfidence = 0.70, 
   return data
 }
 
+// Fetch follower/following counts for a user
+export async function fetchFollowCounts(userId: string): Promise<{ followers: number; following: number }> {
+  const [{ count: followers }, { count: following }] = await Promise.all([
+    supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', userId),
+    supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', userId),
+  ])
+  return { followers: followers ?? 0, following: following ?? 0 }
+}
+
+// Fetch a single user's profile with follow status relative to currentUserId
+export async function fetchUserProfile(
+  targetUserId: string,
+  currentUserId: string
+): Promise<{ id: string; username: string; display_name: string | null; primary_zodaic_sign_id: number | null; isFollowing: boolean; followers: number; following: number } | null> {
+  const [{ data: profile }, { data: follows }, followCounts] = await Promise.all([
+    supabase.from('profiles').select('id, username, display_name, primary_zodaic_sign_id').eq('id', targetUserId).single(),
+    supabase.from('follows').select('following_id').eq('follower_id', currentUserId).eq('following_id', targetUserId),
+    fetchFollowCounts(targetUserId),
+  ])
+  if (!profile) return null
+  return { ...profile, isFollowing: (follows ?? []).length > 0, ...followCounts }
+}
+
 // Fetch all users except current user, with follow status
 export async function fetchUsers(currentUserId: string): Promise<{ id: string; username: string; display_name: string | null; primary_zodaic_sign_id: number | null; isFollowing: boolean }[]> {
   const [{ data: profiles }, { data: follows }] = await Promise.all([
