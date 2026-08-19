@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Image, Modal, ScrollView } from 'react-native'
+import { Swipeable } from 'react-native-gesture-handler'
 import SignDetailModal from '@/components/SignDetailModal'
 import UserProfileSheet from '@/components/UserProfileSheet'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -10,6 +11,27 @@ import { useFocusEffect, useRouter } from 'expo-router'
 
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000
 const FEED_CACHE_TTL_MS = 5 * 60 * 1000
+const DISMISSED_KEY = 'home_dismissed_v1'
+const DISMISSED_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+type DismissedEntry = { id: string; reason: 'read' | 'not_interested'; signId: number; ts: number }
+
+async function loadDismissed(): Promise<Set<string>> {
+  const raw = await AsyncStorage.getItem(DISMISSED_KEY)
+  if (!raw) return new Set()
+  const entries: DismissedEntry[] = JSON.parse(raw)
+  const fresh = entries.filter((e) => Date.now() - e.ts < DISMISSED_TTL_MS)
+  return new Set(fresh.map((e) => e.id))
+}
+
+async function saveDismissed(id: string, reason: 'read' | 'not_interested', signId: number) {
+  const raw = await AsyncStorage.getItem(DISMISSED_KEY)
+  const entries: DismissedEntry[] = raw ? JSON.parse(raw) : []
+  const updated = entries
+    .filter((e) => e.id !== id && Date.now() - e.ts < DISMISSED_TTL_MS)
+    .concat({ id, reason, signId, ts: Date.now() })
+  await AsyncStorage.setItem(DISMISSED_KEY, JSON.stringify(updated))
+}
 
 let feedCache: { items: FeedItem[]; signId: number | null; ts: number } | null = null
 
@@ -58,10 +80,13 @@ export default function HomeScreen() {
   const [compatibilityScores, setCompatibilityScores] = useState<Record<number, number>>({})
   const [filterSignIds, setFilterSignIds] = useState<Set<number>>(new Set())
   const [filterModalVisible, setFilterModalVisible] = useState(false)
+  const [filterSortOrder, setFilterSortOrder] = useState<'desc' | 'asc'>('desc')
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
   const [selectedSignId, setSelectedSignId] = useState<number | null>(null)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [explainerVisible, setExplainerVisible] = useState(false)
+  const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map())
   const router = useRouter()
 
   async function load() {
@@ -106,6 +131,7 @@ export default function HomeScreen() {
   }
 
   useFocusEffect(useCallback(() => {
+    loadDismissed().then(setDismissedIds)
     const now = Date.now()
     if (feedCache && now - feedCache.ts < FEED_CACHE_TTL_MS) {
       // Cache is fresh — restore instantly and skip the fetch
@@ -128,13 +154,15 @@ export default function HomeScreen() {
 
   const primarySign = primarySignId ? SIGN_BY_ID[primarySignId] : null
 
-  const filteredItems = filterSignIds.size > 0
-    ? feedItems.filter((item) => {
-        if (item.type === 'news') return filterSignIds.has(item.item.zodaic_sign_id)
-        if (item.type === 'share') return item.share.content_item ? filterSignIds.has(item.share.content_item.zodaic_sign_id) : false
-        return false
-      })
-    : feedItems
+  const filteredItems = feedItems
+    .filter((item) => {
+      const id = item.type === 'news' ? item.item.id : null
+      if (id && dismissedIds.has(id)) return false
+      if (filterSignIds.size === 0) return true
+      if (item.type === 'news') return filterSignIds.has(item.item.zodaic_sign_id)
+      if (item.type === 'share') return item.share.content_item ? filterSignIds.has(item.share.content_item.zodaic_sign_id) : false
+      return false
+    })
 
   function handleNewsPress(item: any) {
     router.push({
@@ -151,6 +179,12 @@ export default function HomeScreen() {
 
   function handleSharePress(contentId: string) {
     router.push({ pathname: '/(tabs)/discover', params: { contentId } })
+  }
+
+  async function handleDismiss(id: string, reason: 'read' | 'not_interested', signId: number) {
+    swipeableRefs.current.get(id)?.close()
+    setDismissedIds((prev) => new Set([...prev, id]))
+    await saveDismissed(id, reason, signId)
   }
 
   const renderHeader = () => {
@@ -211,25 +245,55 @@ export default function HomeScreen() {
   const renderItem = ({ item }: { item: FeedItem }) => {
     if (item.type === 'news') {
       const sign = SIGN_BY_ID[item.item.zodaic_sign_id]
+      const contentId = item.item.id
+      const signId = item.item.zodaic_sign_id
+
+      const renderRightActions = () => (
+        <View style={styles.swipeActions}>
+          <TouchableOpacity
+            style={styles.swipeRead}
+            onPress={() => handleDismiss(contentId, 'read', signId)}
+          >
+            <Text style={styles.swipeIcon}>✓</Text>
+            <Text style={styles.swipeLabel}>Read</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.swipeNotInterested}
+            onPress={() => handleDismiss(contentId, 'not_interested', signId)}
+          >
+            <Text style={styles.swipeIcon}>✕</Text>
+            <Text style={styles.swipeLabel}>Not{'\n'}Interested</Text>
+          </TouchableOpacity>
+        </View>
+      )
+
       return (
-        <TouchableOpacity style={styles.newsCard} onPress={() => handleNewsPress(item.item)} activeOpacity={0.8}>
-          {item.item.image_url ? (
-            <Image source={{ uri: item.item.image_url }} style={styles.newsImage} resizeMode="cover" />
-          ) : (
-            <View style={[styles.newsImagePlaceholder, { backgroundColor: (sign?.color ?? '#9b59b6') + '22' }]}>
-              <Text style={styles.newsImageEmoji}>{sign?.symbol}</Text>
-            </View>
-          )}
-          <View style={styles.newsContent}>
-            <TouchableOpacity style={styles.newsSignBadge} onPress={(e) => { e.stopPropagation(); if (sign) setSelectedSignId(sign.id) }}>
-              <Text style={[styles.newsSignText, { color: sign?.color }]}>{sign?.symbol} {sign?.name} ›</Text>
-            </TouchableOpacity>
-            <Text style={styles.newsTitle} numberOfLines={2}>{item.item.title}</Text>
-            {item.item.description && (
-              <Text style={styles.newsDescription} numberOfLines={2}>{item.item.description}</Text>
+        <Swipeable
+          ref={(ref) => swipeableRefs.current.set(contentId, ref)}
+          renderRightActions={renderRightActions}
+          friction={2}
+          rightThreshold={40}
+          overshootRight={false}
+        >
+          <TouchableOpacity style={styles.newsCard} onPress={() => handleNewsPress(item.item)} activeOpacity={0.8}>
+            {item.item.image_url ? (
+              <Image source={{ uri: item.item.image_url }} style={styles.newsImage} resizeMode="cover" />
+            ) : (
+              <View style={[styles.newsImagePlaceholder, { backgroundColor: (sign?.color ?? '#9b59b6') + '22' }]}>
+                <Text style={styles.newsImageEmoji}>{sign?.symbol}</Text>
+              </View>
             )}
-          </View>
-        </TouchableOpacity>
+            <View style={styles.newsContent}>
+              <TouchableOpacity style={styles.newsSignBadge} onPress={(e) => { e.stopPropagation(); if (sign) setSelectedSignId(sign.id) }}>
+                <Text style={[styles.newsSignText, { color: sign?.color }]}>{sign?.symbol} {sign?.name} ›</Text>
+              </TouchableOpacity>
+              <Text style={styles.newsTitle} numberOfLines={2}>{item.item.title}</Text>
+              {item.item.description && (
+                <Text style={styles.newsDescription} numberOfLines={2}>{item.item.description}</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        </Swipeable>
       )
     }
 
@@ -327,10 +391,16 @@ export default function HomeScreen() {
 
       <Modal visible={filterModalVisible} transparent animationType="slide" onRequestClose={() => setFilterModalVisible(false)}>
         <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setFilterModalVisible(false)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
           <View style={styles.modalSheet}>
             <View style={styles.modalTitleRow}>
               <Text style={styles.modalTitle}>Filter by Sign</Text>
-              <Text style={styles.modalAffinityHeader}>Affinity</Text>
+              <View style={styles.modalTitleRight}>
+                <TouchableOpacity style={styles.sortToggle} onPress={() => setFilterSortOrder((o) => o === 'desc' ? 'asc' : 'desc')}>
+                  <Text style={styles.sortToggleText}>{filterSortOrder === 'desc' ? 'Best → Worst' : 'Worst → Best'}</Text>
+                  <Text style={styles.sortToggleArrow}>{filterSortOrder === 'desc' ? '↓' : '↑'}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
             <ScrollView>
               <TouchableOpacity
@@ -344,7 +414,13 @@ export default function HomeScreen() {
 
               {[...ZODAIC_SIGNS]
                 .filter((sign) => sign.id !== primarySignId)
-                .sort((a, b) => a.name.replace('The ', '').localeCompare(b.name.replace('The ', '')))
+                .sort((a, b) => {
+                  const scoreA = compatibilityScores[a.id] ?? elementalScore(primarySignId ?? 1, a.id)
+                  const scoreB = compatibilityScores[b.id] ?? elementalScore(primarySignId ?? 1, b.id)
+                  const scoreDiff = filterSortOrder === 'desc' ? scoreB - scoreA : scoreA - scoreB
+                  if (scoreDiff !== 0) return scoreDiff
+                  return a.name.replace('The ', '').localeCompare(b.name.replace('The ', ''))
+                })
                 .map((sign) => {
                 const score = compatibilityScores[sign.id] ?? elementalScore(primarySignId ?? 1, sign.id)
                 const label = scoreToLabel(score)
@@ -383,6 +459,7 @@ export default function HomeScreen() {
               <Text style={styles.modalDoneText}>Done</Text>
             </TouchableOpacity>
           </View>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
     </>
@@ -456,7 +533,10 @@ const styles = StyleSheet.create({
   modalSheet: { backgroundColor: '#1a1a2e', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '80%' },
   modalTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  modalAffinityHeader: { color: '#555', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
+  modalTitleRight: { alignItems: 'flex-end' },
+  sortToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#2a1a3e', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  sortToggleText: { color: '#9b59b6', fontSize: 12, fontWeight: '700' },
+  sortToggleArrow: { color: '#9b59b6', fontSize: 12, fontWeight: '800' },
   modalRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: '#2a2a3e' },
   modalRowSelected: { backgroundColor: '#2a1a3e', marginHorizontal: -24, paddingHorizontal: 24 },
   modalSymbol: { fontSize: 20, width: 28 },
@@ -467,4 +547,9 @@ const styles = StyleSheet.create({
   modalScore: { fontSize: 12, fontWeight: '800', width: 26, textAlign: 'right' },
   modalCheck: { color: '#9b59b6', fontSize: 16, fontWeight: '800' },
   modalInfo: { color: '#444', fontSize: 16, marginLeft: 4 },
+  swipeActions: { flexDirection: 'row', marginBottom: 10 },
+  swipeRead: { backgroundColor: '#2ecc71', width: 80, justifyContent: 'center', alignItems: 'center', borderRadius: 0 },
+  swipeNotInterested: { backgroundColor: '#e74c3c', width: 80, justifyContent: 'center', alignItems: 'center', borderTopRightRadius: 16, borderBottomRightRadius: 16 },
+  swipeIcon: { color: '#fff', fontSize: 20, fontWeight: '800' },
+  swipeLabel: { color: '#fff', fontSize: 10, fontWeight: '700', textAlign: 'center', marginTop: 2 },
 })
