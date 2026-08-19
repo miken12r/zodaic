@@ -61,6 +61,7 @@ export default function HomeScreen() {
   const [selectedSignId, setSelectedSignId] = useState<number | null>(null)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [explainerVisible, setExplainerVisible] = useState(false)
   const router = useRouter()
 
   async function load() {
@@ -167,6 +168,16 @@ export default function HomeScreen() {
             <Text style={styles.headerSignName}>Set up your profile →</Text>
           )}
         </TouchableOpacity>
+        <View style={styles.headerSubtitleRow}>
+          <Text style={styles.headerSubtitle}>
+            {primarySign ? 'Stories ranked by your sign compatibility' : 'Showing trending stories across all signs'}
+          </Text>
+          {primarySign && (
+            <TouchableOpacity onPress={() => setExplainerVisible(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.infoIcon}>ⓘ</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {!primarySign && (
           <TouchableOpacity style={styles.setupBanner} onPress={() => router.push('/(tabs)/profile')}>
@@ -292,6 +303,28 @@ export default function HomeScreen() {
         />
       )}
 
+      <Modal visible={explainerVisible} transparent animationType="slide" onRequestClose={() => setExplainerVisible(false)}>
+        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setExplainerVisible(false)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={[styles.explainerSheet, primarySign ? { borderTopColor: primarySign.color } : {}]}>
+              <Text style={styles.explainerTitle}>How your feed works</Text>
+              <Text style={styles.explainerBody}>
+                Every story in your feed is classified into one of the 12 ZodAIc signs based on its content and energy.
+              </Text>
+              <Text style={styles.explainerBody}>
+                Stories are ranked by how compatible each sign is with yours — so content that resonates with {primarySign?.name} energy rises to the top.
+              </Text>
+              <Text style={styles.explainerBody}>
+                Tap any sign badge on a story to learn more about that sign. Use the filter to focus on specific signs.
+              </Text>
+              <TouchableOpacity style={[styles.explainerButton, { backgroundColor: primarySign?.color ?? '#9b59b6' }]} onPress={() => setExplainerVisible(false)}>
+                <Text style={styles.explainerButtonText}>Got it</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       <Modal visible={filterModalVisible} transparent animationType="slide" onRequestClose={() => setFilterModalVisible(false)}>
         <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setFilterModalVisible(false)}>
           <View style={styles.modalSheet}>
@@ -363,6 +396,17 @@ const styles = StyleSheet.create({
   loadingText: { color: '#9b59b6', fontSize: 15 },
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' },
   headerLabel: { fontSize: 22, fontWeight: '800', color: '#fff' },
+  headerSubtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, marginTop: -6 },
+  headerSubtitle: { color: '#888', fontSize: 14, fontStyle: 'italic' },
+  infoIcon: { color: '#555', fontSize: 15 },
+  explainerSheet: {
+    backgroundColor: '#1a1a2e', borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, paddingBottom: 48, borderTopWidth: 3, borderTopColor: '#9b59b6',
+  },
+  explainerTitle: { color: '#fff', fontSize: 18, fontWeight: '800', marginBottom: 16 },
+  explainerBody: { color: '#aaa', fontSize: 14, lineHeight: 22, marginBottom: 12 },
+  explainerButton: { borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 8 },
+  explainerButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   headerSymbol: { fontSize: 22, marginRight: 4 },
   headerSignName: { fontSize: 22, fontWeight: '800', color: '#fff' },
   setupBanner: {
