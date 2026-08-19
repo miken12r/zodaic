@@ -135,25 +135,47 @@ export type FeedItem =
   | { type: 'news'; item: ContentItem; score: number }
   | { type: 'share'; share: Share & { content_item?: ContentItem }; score: number }
 
+const FEED_MIN_ITEMS = 10
+const FEED_WINDOWS_MS = [
+  24 * 60 * 60 * 1000,
+  72 * 60 * 60 * 1000,
+  7 * 24 * 60 * 60 * 1000,
+]
+
+async function fetchNewsWithFallback(): Promise<ContentItem[]> {
+  for (const windowMs of FEED_WINDOWS_MS) {
+    const since = new Date(Date.now() - windowMs).toISOString()
+    const { data } = await supabase
+      .from('content_items')
+      .select('*')
+      .eq('source', 'news')
+      .gte('classified_at', since)
+      .order('classified_at', { ascending: false })
+      .limit(50)
+    if ((data ?? []).length >= FEED_MIN_ITEMS) return data as ContentItem[]
+  }
+  // Last resort: most recent 50 items regardless of age
+  const { data } = await supabase
+    .from('content_items')
+    .select('*')
+    .eq('source', 'news')
+    .order('classified_at', { ascending: false })
+    .limit(50)
+  return (data ?? []) as ContentItem[]
+}
+
 export async function fetchHomeFeed(
   userId: string,
   primarySignId: number,
   compatibilityScores?: Record<number, number>
 ): Promise<FeedItem[]> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-
-  const [{ data: newsItems }, followData] = await Promise.all([
-    supabase
-      .from('content_items')
-      .select('*')
-      .eq('source', 'news')
-      .gte('classified_at', since)
-      .order('classified_at', { ascending: false })
-      .limit(50),
+  const [newsItems, { data: followRows }] = await Promise.all([
+    fetchNewsWithFallback(),
     supabase.from('follows').select('following_id').eq('follower_id', userId),
   ])
 
-  const followingIds = (followData.data ?? []).map((f) => f.following_id)
+  const followingIds = (followRows ?? []).map((f) => f.following_id)
   let shareItems: (Share & { content_item?: ContentItem })[] = []
 
   if (followingIds.length > 0) {
@@ -191,7 +213,7 @@ export async function fetchHomeFeed(
   const getScore = (signId: number) =>
     compatibilityScores?.[signId] ?? elementalScore(primarySignId, signId)
 
-  const newsFeed: FeedItem[] = (newsItems ?? []).map((item) => ({
+  const newsFeed: FeedItem[] = newsItems.map((item) => ({
     type: 'news',
     item: item as ContentItem,
     score: getScore(item.zodaic_sign_id),
