@@ -9,6 +9,9 @@ import { SIGN_BY_ID, ZODAIC_SIGNS } from '@/constants/signs'
 import { useFocusEffect, useRouter } from 'expo-router'
 
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000
+const FEED_CACHE_TTL_MS = 5 * 60 * 1000
+
+let feedCache: { items: FeedItem[]; signId: number | null; ts: number } | null = null
 
 const ELEMENT_MAP: Record<number, string> = {
   1: 'fire', 2: 'earth', 3: 'air', 4: 'water',
@@ -76,6 +79,7 @@ export default function HomeScreen() {
 
     if (!signId) {
       const items = await fetchTrendingFeed()
+      feedCache = { items, signId: null, ts: Date.now() }
       setFeedItems(items)
       setLoading(false)
       return
@@ -95,18 +99,27 @@ export default function HomeScreen() {
     setCompatibilityScores(scores)
 
     const items = await fetchHomeFeed(user.id, signId, scores)
+    feedCache = { items, signId, ts: Date.now() }
     setFeedItems(items)
     setLoading(false)
   }
 
   useFocusEffect(useCallback(() => {
-    setLoading(true)
-    setPrimarySignId(null)
-    setFeedItems([])
+    const now = Date.now()
+    if (feedCache && now - feedCache.ts < FEED_CACHE_TTL_MS) {
+      // Cache is fresh — restore instantly and skip the fetch
+      setFeedItems(feedCache.items)
+      setPrimarySignId(feedCache.signId)
+      setLoading(false)
+      return
+    }
+    // Cache is stale or sign may have changed — fetch fresh
+    if (!feedCache) setLoading(true)
     load()
   }, []))
 
   async function onRefresh() {
+    feedCache = null
     setRefreshing(true)
     await load()
     setRefreshing(false)
