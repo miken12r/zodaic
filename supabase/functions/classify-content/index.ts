@@ -50,12 +50,15 @@ ${signsDescription}
 
 Analyze this URL: ${url}
 
-Based on the URL and your knowledge of this website or content type, classify it into exactly one ZodAIc sign.
+Classification priority:
+1. If this is a specific article or page (not a homepage), classify by the CONTENT of that specific piece — the topic, angle, and framing suggested by the URL path and your knowledge of it — not by the outlet's general identity.
+2. Use the publishing outlet as a secondary signal for editorial tone and framing (e.g. an investigative piece on a tabloid vs. a broadsheet may differ).
+3. If this is a homepage or domain root, classify the site's overall identity and purpose.
 
 Respond with valid JSON only, no other text:
 {
-  "title": "short descriptive title for this content",
-  "description": "2-3 sentence description of this site's nature and purpose",
+  "title": "short descriptive title for this specific content",
+  "description": "2-3 sentences on what this content is about and why it fits this sign",
   "zodaic_sign_id": <number 1-12>,
   "classification_confidence": <float 0.0-1.0>,
   "characteristics": ["trait1", "trait2", "trait3"]

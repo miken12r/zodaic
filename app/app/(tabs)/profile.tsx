@@ -49,6 +49,7 @@ export default function ProfileScreen() {
   const [displayName, setDisplayName] = useState('')
   const [birthDate, setBirthDate] = useState('')
   const [saving, setSaving] = useState(false)
+  const [usernameError, setUsernameError] = useState('')
   const [affinities, setAffinities] = useState<UserSignAffinity[]>([])
   const [horoscope, setHoroscope] = useState<Horoscope | null>(null)
   const [followCounts, setFollowCounts] = useState<{ followers: number; following: number } | null>(null)
@@ -78,7 +79,23 @@ export default function ProfileScreen() {
     })
   }, [])
 
+  function validateUsername(value: string): string {
+    if (!value.trim()) return 'Username is required.'
+    if (/\s/.test(value)) return 'Username cannot contain spaces.'
+    if (!/^[a-zA-Z0-9_]+$/.test(value)) return 'Only letters, numbers, and underscores allowed.'
+    if (value.length < 3) return 'Username must be at least 3 characters.'
+    if (value.length > 30) return 'Username must be 30 characters or fewer.'
+    return ''
+  }
+
+  function handleUsernameChange(value: string) {
+    setUsername(value)
+    setUsernameError(validateUsername(value))
+  }
+
   async function saveProfile() {
+    const err = validateUsername(username)
+    if (err) { setUsernameError(err); return }
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setSaving(false); return }
@@ -145,13 +162,15 @@ export default function ProfileScreen() {
       <View style={styles.card}>
         <Text style={styles.label}>Username</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, usernameError ? styles.inputError : {}]}
           value={username}
-          onChangeText={setUsername}
+          onChangeText={handleUsernameChange}
           placeholder="your_username"
           placeholderTextColor="#555"
           autoCapitalize="none"
+          autoCorrect={false}
         />
+        {usernameError ? <Text style={styles.fieldError}>{usernameError}</Text> : null}
 
         <Text style={styles.label}>Display Name</Text>
         <TextInput
@@ -172,7 +191,7 @@ export default function ProfileScreen() {
         />
         <Text style={styles.hint}>Enter as {DATE_FORMAT}. Used to calculate your digital zodiac sign.</Text>
 
-        <TouchableOpacity style={styles.saveButton} onPress={saveProfile} disabled={saving}>
+        <TouchableOpacity style={[styles.saveButton, (saving || !!usernameError) && styles.saveButtonDisabled]} onPress={saveProfile} disabled={saving || !!usernameError}>
           <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save Profile'}</Text>
         </TouchableOpacity>
       </View>
@@ -250,7 +269,10 @@ const styles = StyleSheet.create({
   },
   hint: { color: '#555', fontSize: 12, marginTop: -12, marginBottom: 16 },
   saveButton: { backgroundColor: '#9b59b6', borderRadius: 12, padding: 14, alignItems: 'center' },
+  saveButtonDisabled: { opacity: 0.4 },
   saveButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  inputError: { borderColor: '#e74c3c' },
+  fieldError: { color: '#e74c3c', fontSize: 12, marginTop: -12, marginBottom: 16 },
   cosmosSection: { marginTop: 8 },
   cosmosTitle: { fontSize: 20, fontWeight: '800', color: '#fff', marginBottom: 16 },
   signCard: {

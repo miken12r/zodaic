@@ -46,6 +46,8 @@ export default function DiscoverScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'classify' | 'people'>('classify')
+  const [peopleSearch, setPeopleSearch] = useState('')
   const scrollRef = useRef<ScrollView>(null)
 
   useFocusEffect(useCallback(() => {
@@ -57,6 +59,7 @@ export default function DiscoverScreen() {
       setCurrentUserId(user.id)
       fetchUsers(user.id).then(setPeople)
     })
+    if (signId || contentId) setActiveTab('classify')
     if (contentId) {
       fetchContentItem(contentId).then((item) => {
         if (item) {
@@ -144,13 +147,37 @@ export default function DiscoverScreen() {
 
   const sign = result ? SIGN_BY_ID[result.zodaic_sign_id] : null
 
+  const filteredPeople = peopleSearch.trim()
+    ? people.filter((p) => {
+        const q = peopleSearch.toLowerCase()
+        return (p.display_name ?? '').toLowerCase().includes(q) || p.username.toLowerCase().includes(q)
+      })
+    : people
+
   return (
     <>
     <SignDetailModal signId={selectedSignId} onClose={() => setSelectedSignId(null)} />
     <ScrollView ref={scrollRef} style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Discover</Text>
-      <Text style={styles.subtitle}>Enter any URL to reveal its ZodAIc sign.</Text>
 
+      {/* Segment control */}
+      <View style={styles.segmentControl}>
+        <TouchableOpacity
+          style={[styles.segment, activeTab === 'classify' && styles.segmentActive]}
+          onPress={() => setActiveTab('classify')}
+        >
+          <Text style={[styles.segmentText, activeTab === 'classify' && styles.segmentTextActive]}>Classify</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.segment, activeTab === 'people' && styles.segmentActive]}
+          onPress={() => setActiveTab('people')}
+        >
+          <Text style={[styles.segmentText, activeTab === 'people' && styles.segmentTextActive]}>People</Text>
+        </TouchableOpacity>
+      </View>
+
+      {activeTab === 'classify' && <>
+      <Text style={styles.subtitle}>Enter any URL to reveal its ZodAIc sign.</Text>
       <View style={styles.inputRow}>
         <TextInput
           style={styles.input}
@@ -277,35 +304,59 @@ export default function DiscoverScreen() {
           })}
         </View>
       )}
-      {people.length > 0 && (
+      </>}
+
+      {activeTab === 'people' && (
         <View style={styles.peopleSection}>
-          <Text style={styles.peopleTitle}>People</Text>
-          {people.map((person) => {
-            const sign = person.primary_zodaic_sign_id ? SIGN_BY_ID[person.primary_zodaic_sign_id] : null
-            return (
-              <View key={person.id} style={styles.personRow}>
-                <TouchableOpacity style={styles.personInfo} onPress={() => setSelectedUserId(person.id)}>
-                  <Text style={styles.personAvatar}>{sign?.symbol ?? '☽'}</Text>
-                  <View>
-                    <Text style={styles.personName}>{person.display_name ?? person.username}</Text>
-                    {sign && <Text style={[styles.personSign, { color: sign.color }]}>{sign.name}</Text>}
-                  </View>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.followButton, person.isFollowing && styles.followingButton]}
-                  onPress={() => handleFollowToggle(person)}
-                  disabled={togglingId === person.id}
-                >
-                  <Text style={[styles.followButtonText, person.isFollowing && styles.followingButtonText]}>
-                    {togglingId === person.id ? '...' : person.isFollowing ? 'Following' : 'Follow'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )
-          })}
+          <View style={styles.searchRow}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search people..."
+              placeholderTextColor="#555"
+              value={peopleSearch}
+              onChangeText={setPeopleSearch}
+              autoCapitalize="none"
+              returnKeyType="search"
+            />
+            {peopleSearch.length > 0 && (
+              <TouchableOpacity style={styles.searchClear} onPress={() => setPeopleSearch('')}>
+                <Text style={styles.searchClearText}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {filteredPeople.length === 0 ? (
+            <Text style={styles.peopleEmpty}>
+              {peopleSearch ? 'No users match your search.' : 'No other users yet — invite someone!'}
+            </Text>
+          ) : (
+            filteredPeople.map((person) => {
+              const sign = person.primary_zodaic_sign_id ? SIGN_BY_ID[person.primary_zodaic_sign_id] : null
+              return (
+                <View key={person.id} style={styles.personRow}>
+                  <TouchableOpacity style={styles.personInfo} onPress={() => setSelectedUserId(person.id)}>
+                    <Text style={styles.personAvatar}>{sign?.symbol ?? '☽'}</Text>
+                    <View>
+                      <Text style={styles.personName}>{person.display_name ?? person.username}</Text>
+                      {sign && <Text style={[styles.personSign, { color: sign.color }]}>{sign.name}</Text>}
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.followButton, person.isFollowing && styles.followingButton]}
+                    onPress={() => handleFollowToggle(person)}
+                    disabled={togglingId === person.id}
+                  >
+                    <Text style={[styles.followButtonText, person.isFollowing && styles.followingButtonText]}>
+                      {togglingId === person.id ? '...' : person.isFollowing ? 'Following' : 'Follow'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )
+            })
+          )}
         </View>
       )}
     </ScrollView>
+
     {currentUserId && (
       <UserProfileSheet
         userId={selectedUserId}
@@ -320,7 +371,12 @@ export default function DiscoverScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0d0d1a' },
   content: { padding: 24, paddingTop: 60 },
-  title: { fontSize: 28, fontWeight: '800', color: '#fff', marginBottom: 6 },
+  title: { fontSize: 28, fontWeight: '800', color: '#fff', marginBottom: 16 },
+  segmentControl: { flexDirection: 'row', backgroundColor: '#1a1a2e', borderRadius: 12, padding: 4, marginBottom: 24 },
+  segment: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
+  segmentActive: { backgroundColor: '#9b59b6' },
+  segmentText: { color: '#555', fontSize: 14, fontWeight: '700' },
+  segmentTextActive: { color: '#fff' },
   subtitle: { color: '#888', fontSize: 15, marginBottom: 24 },
   inputRow: { flexDirection: 'row', gap: 10, marginBottom: 24 },
   input: {
@@ -397,7 +453,11 @@ const styles = StyleSheet.create({
   historyUrl: { color: '#555', fontSize: 11, marginTop: 2 },
   historySign: { fontSize: 11, fontWeight: '700' },
   peopleSection: { marginTop: 8 },
-  peopleTitle: { color: '#9b59b6', fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 },
+  peopleEmpty: { color: '#555', fontSize: 14, fontStyle: 'italic', textAlign: 'center', paddingVertical: 32 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a2e', borderRadius: 12, borderWidth: 1, borderColor: '#2a2a3e', marginBottom: 16 },
+  searchInput: { flex: 1, color: '#fff', fontSize: 15, padding: 14 },
+  searchClear: { paddingHorizontal: 14 },
+  searchClearText: { color: '#555', fontSize: 16 },
   personRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a2e', borderRadius: 12, padding: 12, marginBottom: 8, gap: 10 },
   personInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   personAvatar: { fontSize: 28 },
