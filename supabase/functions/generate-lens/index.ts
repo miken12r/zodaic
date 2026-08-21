@@ -58,9 +58,14 @@ Deno.serve(async (req) => {
       .single()
 
     if (existing?.lens_text) {
-      return new Response(JSON.stringify({ lens_text: existing.lens_text }), {
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      })
+      // Re-generate if cached value is plain text (pre-structured format)
+      let parsed: any = null
+      try { parsed = JSON.parse(existing.lens_text) } catch {}
+      if (parsed?.intro && parsed?.bullets) {
+        return new Response(JSON.stringify({ lens_text: existing.lens_text }), {
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        })
+      }
     }
 
     const sign = SIGNS[zodaic_sign_id]
@@ -95,9 +100,13 @@ ${contentSection}
 
 Known characteristics from classification: ${Array.isArray(characteristics) ? characteristics.join(', ') : characteristics ?? ''}
 
-Write a short ZodAIc lens reading (3–4 sentences) that helps the reader notice the ${sign.name} energy in how this article is written, framed, or treated — not just what it's about. Focus on tone, angle, rhetorical choices, and what the author emphasizes or omits. Be specific to this article's content, not generic. Write in second person ("Notice how...", "The author...", "This piece..."). Do not explain the classification or mention the sign name directly.
+Write a ZodAIc lens reading that helps the reader notice the ${sign.name} energy in how this article is written, framed, or treated — not just what it's about. Focus on tone, angle, rhetorical choices, and what the author emphasizes or omits. Be specific to this article's content, not generic. Do not mention the sign name directly.
 
-Respond with the lens text only — no labels, no JSON.`
+Respond with valid JSON only:
+{
+  "intro": "1-2 sentence framing of the overall energy of this piece",
+  "bullets": ["specific thing to notice #1", "specific thing to notice #2", "specific thing to notice #3"]
+}`
 
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY')!
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -120,7 +129,9 @@ Respond with the lens text only — no labels, no JSON.`
     }
 
     const anthropicData = await response.json()
-    const lens_text = anthropicData.content[0].text.trim()
+    const rawText = anthropicData.content[0].text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+    const lens = JSON.parse(rawText)
+    const lens_text = JSON.stringify(lens)
 
     // Cache in DB
     await supabase

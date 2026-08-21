@@ -24,7 +24,7 @@ export default function ArticleScreen() {
   const [shared, setShared] = useState(false)
   const [signModalVisible, setSignModalVisible] = useState(false)
   const [lensVisible, setLensVisible] = useState(false)
-  const [lensText, setLensText] = useState<string | null>(null)
+  const [lensText, setLensText] = useState<{ intro: string; bullets: string[] } | null>(null)
   const [lensLoading, setLensLoading] = useState(false)
   const lensRef = useRef<string | null>(null)
 
@@ -46,8 +46,9 @@ export default function ArticleScreen() {
           characteristics: parsed,
         })
         if (!cancelled) {
+          const parsed = JSON.parse(text)
           lensRef.current = text
-          setLensText(text)
+          setLensText(parsed)
         }
       } catch {
         // silent — user can retry by tapping the button
@@ -71,7 +72,7 @@ export default function ArticleScreen() {
         characteristics: parsed,
       })
       lensRef.current = text
-      setLensText(text)
+      setLensText(JSON.parse(text))
     } catch {
       Alert.alert('Error', 'Could not generate lens. Try again.')
       setLensVisible(false)
@@ -180,7 +181,15 @@ export default function ArticleScreen() {
                 </View>
               ) : (
                 <ScrollView>
-                  <Text style={styles.lensBody}>{lensText}</Text>
+                  <Text style={styles.lensIntro}>{lensText.intro}</Text>
+                  <View style={styles.lensBullets}>
+                    {lensText.bullets.map((b, i) => (
+                      <View key={i} style={styles.lensBulletRow}>
+                        <Text style={[styles.lensBulletDot, { color: sign?.color ?? '#9b59b6' }]}>•</Text>
+                        <Text style={styles.lensBulletText}>{b}</Text>
+                      </View>
+                    ))}
+                  </View>
                 </ScrollView>
               )}
               <TouchableOpacity
@@ -240,7 +249,11 @@ const styles = StyleSheet.create({
   lensSheetTitle: { fontSize: 16, fontWeight: '800', flexShrink: 1 },
   lensSpinner: { alignItems: 'center', paddingVertical: 32, gap: 12 },
   lensSpinnerText: { color: '#555', fontSize: 13 },
-  lensBody: { color: '#ddd', fontSize: 15, lineHeight: 26 },
+  lensIntro: { color: '#ddd', fontSize: 15, lineHeight: 24, marginBottom: 16 },
+  lensBullets: { gap: 12 },
+  lensBulletRow: { flexDirection: 'row', gap: 10 },
+  lensBulletDot: { fontSize: 16, lineHeight: 24, fontWeight: '800' },
+  lensBulletText: { flex: 1, color: '#bbb', fontSize: 14, lineHeight: 22 },
   lensDoneButton: { borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 24 },
   lensDoneText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 })
