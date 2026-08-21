@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
   loadingText: { color: '#9b59b6', fontSize: 15 },
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' },
   headerLabel: { fontSize: 22, fontWeight: '800', color: '#fff' },
-  headerSubtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 28, marginTop: -6 },
+  headerSubtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 40, marginTop: -6 },
   headerSubtitle: { color: '#888', fontSize: 14, fontStyle: 'italic' },
   infoIcon: { color: '#555', fontSize: 15 },
   explainerSheet: {
