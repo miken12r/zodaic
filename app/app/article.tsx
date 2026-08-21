@@ -26,7 +26,7 @@ export default function ArticleScreen() {
   const [lensVisible, setLensVisible] = useState(false)
   const [lensText, setLensText] = useState<{ intro: string; bullets: string[] } | null>(null)
   const [lensLoading, setLensLoading] = useState(false)
-  const lensRef = useRef<string | null>(null)
+  const lensRef = useRef<boolean>(false)
 
   const sign = signId ? SIGN_BY_ID[parseInt(signId)] : null
   const confidencePct = confidence ? Math.round(parseFloat(confidence) * 100) : null
@@ -46,9 +46,8 @@ export default function ArticleScreen() {
           characteristics: parsed,
         })
         if (!cancelled) {
-          const parsed = JSON.parse(text)
-          lensRef.current = text
-          setLensText(parsed)
+          lensRef.current = true
+          setLensText(text)
         }
       } catch {
         // silent — user can retry by tapping the button
@@ -64,15 +63,15 @@ export default function ArticleScreen() {
     setLensLoading(true)
     try {
       const parsed = characteristics ? JSON.parse(characteristics as string) : []
-      const text = await generateLens({
+      const result = await generateLens({
         content_id: contentId as string,
         url: url as string,
         zodaic_sign_id: parseInt(signId as string),
         title: title as string | undefined,
         characteristics: parsed,
       })
-      lensRef.current = text
-      setLensText(JSON.parse(text))
+      lensRef.current = true
+      setLensText(result)
     } catch {
       Alert.alert('Error', 'Could not generate lens. Try again.')
       setLensVisible(false)

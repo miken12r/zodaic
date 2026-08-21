@@ -9,10 +9,10 @@ export async function generateLens(params: {
   title?: string
   description?: string
   characteristics?: string[]
-}): Promise<string> {
+}): Promise<{ intro: string; bullets: string[] }> {
   const { data, error } = await supabase.functions.invoke('generate-lens', { body: params })
   if (error) throw error
-  return (data as { lens_text: string }).lens_text
+  return (data as { lens_text: { intro: string; bullets: string[] } }).lens_text
 }
 
 // Classify a URL into a ZodAIc sign via Supabase Edge Function

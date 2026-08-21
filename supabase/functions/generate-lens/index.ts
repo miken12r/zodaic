@@ -58,11 +58,10 @@ Deno.serve(async (req) => {
       .single()
 
     if (existing?.lens_text) {
-      // Re-generate if cached value is plain text (pre-structured format)
       let parsed: any = null
       try { parsed = JSON.parse(existing.lens_text) } catch {}
       if (parsed?.intro && parsed?.bullets) {
-        return new Response(JSON.stringify({ lens_text: existing.lens_text }), {
+        return new Response(JSON.stringify({ lens_text: parsed }), {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         })
       }
@@ -131,15 +130,15 @@ Respond with valid JSON only:
     const anthropicData = await response.json()
     const rawText = anthropicData.content[0].text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
     const lens = JSON.parse(rawText)
-    const lens_text = JSON.stringify(lens)
 
-    // Cache in DB
+    // Cache as JSON string in DB
     await supabase
       .from('content_items')
-      .update({ lens_text })
+      .update({ lens_text: JSON.stringify(lens) })
       .eq('id', content_id)
 
-    return new Response(JSON.stringify({ lens_text }), {
+    // Return the parsed object directly — no double-encoding
+    return new Response(JSON.stringify({ lens_text: lens }), {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     })
   } catch (err) {
