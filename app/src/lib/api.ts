@@ -1,6 +1,20 @@
 import { supabase } from './supabase'
 import { ContentItem, Horoscope, UserSignAffinity, Share } from '@/types'
 
+// Generate a ZodAIc lens reading for an article
+export async function generateLens(params: {
+  content_id: string
+  url: string
+  zodaic_sign_id: number
+  title?: string
+  description?: string
+  characteristics?: string[]
+}): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('generate-lens', { body: params })
+  if (error) throw error
+  return (data as { lens_text: string }).lens_text
+}
+
 // Classify a URL into a ZodAIc sign via Supabase Edge Function
 export async function classifyContent(url: string): Promise<ContentItem> {
   const { data, error } = await supabase.functions.invoke('classify-content', {

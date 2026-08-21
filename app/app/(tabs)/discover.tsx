@@ -27,6 +27,7 @@ export default function DiscoverScreen() {
         signId: String(result.zodaic_sign_id),
         title: result.title ?? '',
         confidence: String(result.classification_confidence),
+        characteristics: JSON.stringify(result.characteristics ?? []),
       },
     })
   }

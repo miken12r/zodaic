@@ -173,6 +173,7 @@ export default function HomeScreen() {
         signId: String(item.zodaic_sign_id),
         title: item.title ?? '',
         confidence: String(item.classification_confidence),
+        characteristics: JSON.stringify(item.characteristics ?? []),
       },
     })
   }
