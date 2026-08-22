@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { fetchHoroscope, generateHoroscope, fetchHomeFeed, fetchTrendingFeed, FeedItem, PortAilsResult } from '@/lib/api'
 import { SIGN_BY_ID, ZODAIC_SIGNS } from '@/constants/signs'
 import { useFocusEffect, useRouter } from 'expo-router'
+import { loadFeedSettings, isPaywalled, FeedSettingsData, DEFAULT_FEED_SETTINGS } from '@/components/FeedSettings'
 
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000
 const FEED_CACHE_TTL_MS = 5 * 60 * 1000
@@ -86,6 +87,7 @@ export default function HomeScreen() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [explainerVisible, setExplainerVisible] = useState(false)
+  const [feedSettings, setFeedSettings] = useState<FeedSettingsData>(DEFAULT_FEED_SETTINGS)
   const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map())
   const router = useRouter()
 
@@ -132,6 +134,7 @@ export default function HomeScreen() {
 
   useFocusEffect(useCallback(() => {
     loadDismissed().then(setDismissedIds)
+    loadFeedSettings().then(setFeedSettings)
     const now = Date.now()
     if (feedCache && now - feedCache.ts < FEED_CACHE_TTL_MS) {
       // Cache is fresh — restore instantly and skip the fetch
@@ -158,6 +161,7 @@ export default function HomeScreen() {
     .filter((item) => {
       const id = item.type === 'news' ? item.item.id : null
       if (id && dismissedIds.has(id)) return false
+      if (feedSettings.hidePaywalled && item.type === 'news' && isPaywalled(item.item.url)) return false
       if (filterSignIds.size === 0) return true
       if (item.type === 'news') return filterSignIds.has(item.item.zodaic_sign_id)
       if (item.type === 'share') return item.share.content_item ? filterSignIds.has(item.share.content_item.zodaic_sign_id) : false

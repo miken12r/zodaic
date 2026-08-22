@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { Profile, UserSignAffinity, Horoscope } from '@/types'
 import { fetchUserAffinities, fetchHoroscope, generateHoroscope, fetchFollowCounts } from '@/lib/api'
 import { SIGN_BY_ID } from '@/constants/signs'
+import FeedSettings from '@/components/FeedSettings'
 
 const isUS = Intl.DateTimeFormat().resolvedOptions().locale.startsWith('en-US')
 const DATE_FORMAT = isUS ? 'MM/DD/YYYY' : 'DD/MM/YYYY'
@@ -240,6 +241,8 @@ export default function ProfileScreen() {
           )}
         </View>
       )}
+
+      <FeedSettings />
     </ScrollView>
   )
 }
