@@ -1,6 +1,19 @@
 import { supabase } from './supabase'
 import { ContentItem, Horoscope, UserSignAffinity, Share } from '@/types'
 
+// Extract clean article content via Readability (Reader Mode)
+export async function extractArticle(url: string): Promise<{
+  title: string
+  byline: string
+  site_name: string
+  content: string
+  excerpt: string
+}> {
+  const { data, error } = await supabase.functions.invoke('extract-article', { body: { url } })
+  if (error) throw error
+  return data
+}
+
 // Generate a ZodAIc lens reading for an article
 export async function generateLens(params: {
   content_id: string

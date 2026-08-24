@@ -4,9 +4,51 @@ import { WebView } from 'react-native-webview'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SIGN_BY_ID } from '@/constants/signs'
-import { createShare, generateLens } from '@/lib/api'
+import { createShare, generateLens, extractArticle } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
 import SignDetailModal from '@/components/SignDetailModal'
+
+function buildReaderHtml(article: { title: string; byline: string; site_name: string; content: string }, accentColor: string): string {
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d0d1a;
+    color: #ddd;
+    font-family: -apple-system, 'Helvetica Neue', sans-serif;
+    font-size: 17px;
+    line-height: 1.75;
+    padding: 20px 20px 60px;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .site { color: #555; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+  h1 { color: #fff; font-size: 24px; line-height: 1.3; margin-bottom: 10px; }
+  .byline { color: #666; font-size: 13px; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #1a1a2e; }
+  h2 { color: #fff; font-size: 20px; margin: 28px 0 10px; }
+  h3 { color: #eee; font-size: 17px; margin: 20px 0 8px; }
+  p { margin-bottom: 18px; }
+  a { color: ${accentColor}; text-decoration: none; }
+  img { max-width: 100%; border-radius: 8px; margin: 12px 0; }
+  figure { margin: 20px 0; }
+  figcaption { color: #555; font-size: 13px; margin-top: 6px; }
+  blockquote { border-left: 3px solid ${accentColor}; margin: 20px 0; padding: 8px 16px; color: #aaa; font-style: italic; }
+  ul, ol { padding-left: 24px; margin-bottom: 18px; }
+  li { margin-bottom: 6px; }
+  [class*="ad"], [id*="ad"], [class*="promo"], [class*="newsletter"], [class*="subscribe"] { display: none !important; }
+</style>
+</head>
+<body>
+  ${article.site_name ? `<div class="site">${article.site_name}</div>` : ''}
+  <h1>${article.title}</h1>
+  ${article.byline ? `<div class="byline">${article.byline}</div>` : ''}
+  ${article.content}
+</body>
+</html>`
+}
 
 export default function ArticleScreen() {
   const { url, contentId, signId, title, confidence, characteristics } = useLocalSearchParams<{
@@ -27,6 +69,9 @@ export default function ArticleScreen() {
   const [lensText, setLensText] = useState<{ intro: string; bullets: string[] } | null>(null)
   const [lensLoading, setLensLoading] = useState(false)
   const lensRef = useRef<boolean>(false)
+  const [readerMode, setReaderMode] = useState(false)
+  const [readerHtml, setReaderHtml] = useState<string | null>(null)
+  const [readerLoading, setReaderLoading] = useState(false)
 
   const sign = signId ? SIGN_BY_ID[parseInt(signId)] : null
   const confidencePct = confidence ? Math.round(parseFloat(confidence) * 100) : null
@@ -80,6 +125,21 @@ export default function ArticleScreen() {
     }
   }
 
+  async function toggleReaderMode() {
+    if (readerMode) { setReaderMode(false); return }
+    if (readerHtml) { setReaderMode(true); return }
+    setReaderLoading(true)
+    try {
+      const article = await extractArticle(url as string)
+      setReaderHtml(buildReaderHtml(article, sign?.color ?? '#9b59b6'))
+      setReaderMode(true)
+    } catch {
+      Alert.alert('Reader Mode', 'Could not extract this article. It may require a subscription or block automated access.')
+    } finally {
+      setReaderLoading(false)
+    }
+  }
+
   async function handleShare() {
     if (!contentId) return
     setSharing(true)
@@ -118,6 +178,16 @@ export default function ArticleScreen() {
         )}
 
         <TouchableOpacity
+          style={[styles.readerButton, readerMode && { backgroundColor: sign?.color ?? '#9b59b6' }]}
+          onPress={toggleReaderMode}
+          disabled={readerLoading}
+        >
+          <Text style={[styles.readerButtonText, readerMode && styles.readerButtonTextActive]}>
+            {readerLoading ? '…' : 'Aa'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.shareButton, shared && styles.shareButtonDone]}
           onPress={handleShare}
           disabled={sharing || shared || !contentId}
@@ -141,21 +211,30 @@ export default function ArticleScreen() {
         </View>
       ) : null}
 
-      {/* WebView */}
+      {/* WebView / Reader Mode */}
       {url ? (
-        <>
-          {webLoading && (
-            <View style={styles.webLoading}>
-              <ActivityIndicator color="#9b59b6" size="large" />
-            </View>
-          )}
+        readerMode && readerHtml ? (
           <WebView
-            source={{ uri: url }}
+            source={{ html: readerHtml }}
             style={styles.webview}
-            onLoadStart={() => setWebLoading(true)}
-            onLoadEnd={() => setWebLoading(false)}
+            originWhitelist={['*']}
+            scrollEnabled
           />
-        </>
+        ) : (
+          <>
+            {webLoading && (
+              <View style={styles.webLoading}>
+                <ActivityIndicator color="#9b59b6" size="large" />
+              </View>
+            )}
+            <WebView
+              source={{ uri: url }}
+              style={styles.webview}
+              onLoadStart={() => setWebLoading(true)}
+              onLoadEnd={() => setWebLoading(false)}
+            />
+          </>
+        )
       ) : (
         <View style={styles.noUrl}>
           <Text style={styles.noUrlText}>No URL available for this article.</Text>
@@ -219,6 +298,13 @@ const styles = StyleSheet.create({
   signSymbol: { fontSize: 24 },
   signName: { fontSize: 13, fontWeight: '800' },
   signConfidence: { color: '#555', fontSize: 11 },
+  readerButton: {
+    borderRadius: 20, width: 36, height: 36,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: '#2a2a3e',
+  },
+  readerButtonText: { color: '#555', fontSize: 13, fontWeight: '800' },
+  readerButtonTextActive: { color: '#fff' },
   shareButton: {
     backgroundColor: '#9b59b6', borderRadius: 20,
     width: 36, height: 36, justifyContent: 'center', alignItems: 'center',
