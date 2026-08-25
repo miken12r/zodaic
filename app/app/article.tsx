@@ -8,46 +8,40 @@ import { createShare, generateLens, extractArticle } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
 import SignDetailModal from '@/components/SignDetailModal'
 
-function buildReaderHtml(article: { title: string; byline: string; site_name: string; content: string }, accentColor: string): string {
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: #0d0d1a;
-    color: #ddd;
-    font-family: -apple-system, 'Helvetica Neue', sans-serif;
-    font-size: 17px;
-    line-height: 1.75;
-    padding: 20px 20px 60px;
-    max-width: 720px;
-    margin: 0 auto;
+type ReaderContent = {
+  title: string
+  byline: string
+  site_name: string
+  blocks: ReaderBlock[]
+}
+
+type ReaderBlock =
+  | { type: 'h1' | 'h2' | 'h3' | 'p' | 'blockquote'; text: string }
+  | { type: 'divider' }
+
+function parseReaderContent(article: { title: string; byline: string; site_name: string; content: string }): ReaderContent {
+  const blocks: ReaderBlock[] = []
+  const html = article.content
+
+  // Walk through block-level elements and extract text
+  const tagPattern = /<(h1|h2|h3|h4|h5|h6|p|blockquote|li)[^>]*>([\s\S]*?)<\/\1>/gi
+  let match
+  while ((match = tagPattern.exec(html)) !== null) {
+    const tag = match[1].toLowerCase()
+    const inner = match[2]
+      .replace(/<[^>]+>/g, '')
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ').trim()
+    if (!inner) continue
+    if (tag === 'h1') blocks.push({ type: 'h1', text: inner })
+    else if (tag === 'h2' || tag === 'h3') blocks.push({ type: 'h2', text: inner })
+    else if (tag === 'h4' || tag === 'h5' || tag === 'h6') blocks.push({ type: 'h3', text: inner })
+    else if (tag === 'blockquote') blocks.push({ type: 'blockquote', text: inner })
+    else blocks.push({ type: 'p', text: inner })
   }
-  .site { color: #555; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
-  h1 { color: #fff; font-size: 24px; line-height: 1.3; margin-bottom: 10px; }
-  .byline { color: #666; font-size: 13px; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #1a1a2e; }
-  h2 { color: #fff; font-size: 20px; margin: 28px 0 10px; }
-  h3 { color: #eee; font-size: 17px; margin: 20px 0 8px; }
-  p { margin-bottom: 18px; }
-  a { color: ${accentColor}; text-decoration: none; }
-  img { max-width: 100%; border-radius: 8px; margin: 12px 0; }
-  figure { margin: 20px 0; }
-  figcaption { color: #555; font-size: 13px; margin-top: 6px; }
-  blockquote { border-left: 3px solid ${accentColor}; margin: 20px 0; padding: 8px 16px; color: #aaa; font-style: italic; }
-  ul, ol { padding-left: 24px; margin-bottom: 18px; }
-  li { margin-bottom: 6px; }
-  [class*="ad"], [id*="ad"], [class*="promo"], [class*="newsletter"], [class*="subscribe"] { display: none !important; }
-</style>
-</head>
-<body>
-  ${article.site_name ? `<div class="site">${article.site_name}</div>` : ''}
-  <h1>${article.title}</h1>
-  ${article.byline ? `<div class="byline">${article.byline}</div>` : ''}
-  ${article.content}
-</body>
-</html>`
+
+  return { title: article.title, byline: article.byline, site_name: article.site_name, blocks }
 }
 
 export default function ArticleScreen() {
@@ -70,7 +64,7 @@ export default function ArticleScreen() {
   const [lensLoading, setLensLoading] = useState(false)
   const lensRef = useRef<boolean>(false)
   const [readerMode, setReaderMode] = useState(false)
-  const [readerHtml, setReaderHtml] = useState<string | null>(null)
+  const [readerContent, setReaderContent] = useState<ReaderContent | null>(null)
   const [readerLoading, setReaderLoading] = useState(false)
 
   const sign = signId ? SIGN_BY_ID[parseInt(signId)] : null
@@ -127,11 +121,11 @@ export default function ArticleScreen() {
 
   async function toggleReaderMode() {
     if (readerMode) { setReaderMode(false); return }
-    if (readerHtml) { setReaderMode(true); return }
+    if (readerContent) { setReaderMode(true); return }
     setReaderLoading(true)
     try {
       const article = await extractArticle(url as string)
-      setReaderHtml(buildReaderHtml(article, sign?.color ?? '#9b59b6'))
+      setReaderContent(parseReaderContent(article))
       setReaderMode(true)
     } catch {
       Alert.alert('Reader Mode', 'Could not extract this article. It may require a subscription or block automated access.')
@@ -213,13 +207,20 @@ export default function ArticleScreen() {
 
       {/* WebView / Reader Mode */}
       {url ? (
-        readerMode && readerHtml ? (
-          <WebView
-            source={{ html: readerHtml }}
-            style={styles.webview}
-            originWhitelist={['*']}
-            scrollEnabled
-          />
+        readerMode && readerContent ? (
+          <ScrollView style={styles.readerScroll} contentContainerStyle={styles.readerContent}>
+            {readerContent.site_name ? <Text style={styles.readerSite}>{readerContent.site_name}</Text> : null}
+            <Text style={styles.readerTitle}>{readerContent.title}</Text>
+            {readerContent.byline ? <Text style={styles.readerByline}>{readerContent.byline}</Text> : null}
+            {readerContent.blocks.map((block, i) => {
+              if (block.type === 'divider') return <View key={i} style={styles.readerDivider} />
+              if (block.type === 'h1') return <Text key={i} style={styles.readerH1}>{block.text}</Text>
+              if (block.type === 'h2') return <Text key={i} style={styles.readerH2}>{block.text}</Text>
+              if (block.type === 'h3') return <Text key={i} style={styles.readerH3}>{block.text}</Text>
+              if (block.type === 'blockquote') return <View key={i} style={[styles.readerBlockquote, { borderLeftColor: sign?.color ?? '#9b59b6' }]}><Text style={styles.readerBlockquoteText}>{block.text}</Text></View>
+              return <Text key={i} style={styles.readerParagraph}>{block.text}</Text>
+            })}
+          </ScrollView>
         ) : (
           <>
             {webLoading && (
@@ -317,6 +318,18 @@ const styles = StyleSheet.create({
   webLoading: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0d0d1a', zIndex: 10 },
   noUrl: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   noUrlText: { color: '#555', fontSize: 15 },
+  readerScroll: { flex: 1, backgroundColor: '#0d0d1a' },
+  readerContent: { padding: 20, paddingBottom: 60 },
+  readerSite: { color: '#555', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 },
+  readerTitle: { color: '#fff', fontSize: 24, fontWeight: '800', lineHeight: 32, marginBottom: 10 },
+  readerByline: { color: '#666', fontSize: 13, marginBottom: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#1a1a2e' },
+  readerH1: { color: '#fff', fontSize: 22, fontWeight: '800', lineHeight: 30, marginTop: 24, marginBottom: 10 },
+  readerH2: { color: '#fff', fontSize: 19, fontWeight: '700', lineHeight: 26, marginTop: 20, marginBottom: 8 },
+  readerH3: { color: '#eee', fontSize: 16, fontWeight: '700', lineHeight: 24, marginTop: 16, marginBottom: 6 },
+  readerParagraph: { color: '#ccc', fontSize: 17, lineHeight: 28, marginBottom: 16 },
+  readerBlockquote: { borderLeftWidth: 3, paddingLeft: 14, marginVertical: 16 },
+  readerBlockquoteText: { color: '#aaa', fontSize: 16, lineHeight: 26, fontStyle: 'italic' },
+  readerDivider: { height: 1, backgroundColor: '#1a1a2e', marginVertical: 20 },
   lensButton: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginTop: 10, paddingVertical: 7, paddingHorizontal: 12,
