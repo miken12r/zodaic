@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, ScrollView } from 'react-native'
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, ScrollView } from 'react-native'
 import { WebView } from 'react-native-webview'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -17,31 +17,65 @@ type ReaderContent = {
 
 type ReaderBlock =
   | { type: 'h1' | 'h2' | 'h3' | 'p' | 'blockquote'; text: string }
+  | { type: 'image'; src: string; alt: string }
   | { type: 'divider' }
 
-function parseReaderContent(article: { title: string; byline: string; site_name: string; content: string }): ReaderContent {
-  const blocks: ReaderBlock[] = []
-  const html = article.content
+const AD_IMAGE_PATTERNS = ['doubleclick', 'googlesyndication', 'adserver', 'tracking', 'pixel', 'beacon', 'analytics', '1x1', 'spacer', 'ad.', '/ads/']
 
-  // Walk through block-level elements and extract text
-  const tagPattern = /<(h1|h2|h3|h4|h5|h6|p|blockquote|li)[^>]*>([\s\S]*?)<\/\1>/gi
+function isAdImage(src: string): boolean {
+  const lower = src.toLowerCase()
+  return AD_IMAGE_PATTERNS.some((p) => lower.includes(p))
+}
+
+function decodeEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+}
+
+function innerText(html: string): string {
+  return decodeEntities(html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim())
+}
+
+function parseReaderContent(article: { title: string; byline: string; site_name: string; content: string }): ReaderContent {
+  const html = article.content
+  const positioned: Array<{ pos: number; block: ReaderBlock }> = []
+
+  // Extract images in document order
+  const imgPattern = /<img[^>]+>/gi
+  let imgMatch
+  while ((imgMatch = imgPattern.exec(html)) !== null) {
+    const srcMatch = /src=["']([^"']+)["']/.exec(imgMatch[0])
+    const altMatch = /alt=["']([^"']*)["']/.exec(imgMatch[0])
+    if (srcMatch && !isAdImage(srcMatch[1])) {
+      positioned.push({ pos: imgMatch.index, block: { type: 'image', src: srcMatch[1], alt: altMatch?.[1] ?? '' } })
+    }
+  }
+
+  // Extract text blocks in document order
+  const tagPattern = /<(h[1-6]|p|blockquote|li)[^>]*>([\s\S]*?)<\/\1>/gi
   let match
   while ((match = tagPattern.exec(html)) !== null) {
     const tag = match[1].toLowerCase()
-    const inner = match[2]
-      .replace(/<[^>]+>/g, '')
-      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
-      .replace(/\s+/g, ' ').trim()
-    if (!inner) continue
-    if (tag === 'h1') blocks.push({ type: 'h1', text: inner })
-    else if (tag === 'h2' || tag === 'h3') blocks.push({ type: 'h2', text: inner })
-    else if (tag === 'h4' || tag === 'h5' || tag === 'h6') blocks.push({ type: 'h3', text: inner })
-    else if (tag === 'blockquote') blocks.push({ type: 'blockquote', text: inner })
-    else blocks.push({ type: 'p', text: inner })
+    const text = innerText(match[2])
+    if (!text) continue
+    let block: ReaderBlock
+    if (tag === 'h1') block = { type: 'h1', text }
+    else if (tag === 'h2' || tag === 'h3') block = { type: 'h2', text }
+    else if (tag === 'h4' || tag === 'h5' || tag === 'h6') block = { type: 'h3', text }
+    else if (tag === 'blockquote') block = { type: 'blockquote', text }
+    else block = { type: 'p', text }
+    positioned.push({ pos: match.index, block })
   }
 
-  return { title: article.title, byline: article.byline, site_name: article.site_name, blocks }
+  positioned.sort((a, b) => a.pos - b.pos)
+
+  return {
+    title: article.title,
+    byline: article.byline,
+    site_name: article.site_name,
+    blocks: positioned.map((p) => p.block),
+  }
 }
 
 export default function ArticleScreen() {
@@ -214,6 +248,15 @@ export default function ArticleScreen() {
             {readerContent.byline ? <Text style={styles.readerByline}>{readerContent.byline}</Text> : null}
             {readerContent.blocks.map((block, i) => {
               if (block.type === 'divider') return <View key={i} style={styles.readerDivider} />
+              if (block.type === 'image') return (
+                <Image
+                  key={i}
+                  source={{ uri: block.src }}
+                  style={styles.readerImage}
+                  resizeMode="cover"
+                  accessibilityLabel={block.alt}
+                />
+              )
               if (block.type === 'h1') return <Text key={i} style={styles.readerH1}>{block.text}</Text>
               if (block.type === 'h2') return <Text key={i} style={styles.readerH2}>{block.text}</Text>
               if (block.type === 'h3') return <Text key={i} style={styles.readerH3}>{block.text}</Text>
@@ -329,6 +372,7 @@ const styles = StyleSheet.create({
   readerParagraph: { color: '#ccc', fontSize: 17, lineHeight: 28, marginBottom: 16 },
   readerBlockquote: { borderLeftWidth: 3, paddingLeft: 14, marginVertical: 16 },
   readerBlockquoteText: { color: '#aaa', fontSize: 16, lineHeight: 26, fontStyle: 'italic' },
+  readerImage: { width: '100%', height: 220, borderRadius: 10, marginVertical: 16, backgroundColor: '#1a1a2e' },
   readerDivider: { height: 1, backgroundColor: '#1a1a2e', marginVertical: 20 },
   lensButton: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
