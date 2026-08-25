@@ -7,6 +7,7 @@ import { SIGN_BY_ID } from '@/constants/signs'
 import { createShare, generateLens, extractArticle } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
 import SignDetailModal from '@/components/SignDetailModal'
+import { loadFeedSettings, saveFeedSettings } from '@/components/FeedSettings'
 
 type ReaderContent = {
   title: string
@@ -101,6 +102,11 @@ export default function ArticleScreen() {
   const [readerContent, setReaderContent] = useState<ReaderContent | null>(null)
   const [readerLoading, setReaderLoading] = useState(false)
 
+  // Load sticky reader mode preference on mount
+  useEffect(() => {
+    loadFeedSettings().then((s) => { if (s.readerMode) activateReaderMode() })
+  }, [])
+
   const sign = signId ? SIGN_BY_ID[parseInt(signId)] : null
   const confidencePct = confidence ? Math.round(parseFloat(confidence) * 100) : null
 
@@ -153,8 +159,7 @@ export default function ArticleScreen() {
     }
   }
 
-  async function toggleReaderMode() {
-    if (readerMode) { setReaderMode(false); return }
+  async function activateReaderMode() {
     if (readerContent) { setReaderMode(true); return }
     setReaderLoading(true)
     try {
@@ -165,6 +170,17 @@ export default function ArticleScreen() {
       Alert.alert('Reader Mode', 'Could not extract this article. It may require a subscription or block automated access.')
     } finally {
       setReaderLoading(false)
+    }
+  }
+
+  async function toggleReaderMode() {
+    const settings = await loadFeedSettings()
+    if (readerMode) {
+      setReaderMode(false)
+      await saveFeedSettings({ ...settings, readerMode: false })
+    } else {
+      await saveFeedSettings({ ...settings, readerMode: true })
+      await activateReaderMode()
     }
   }
 

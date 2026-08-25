@@ -6,10 +6,12 @@ export const FEED_SETTINGS_KEY = 'feed_settings_v1'
 
 export type FeedSettingsData = {
   hidePaywalled: boolean
+  readerMode: boolean
 }
 
 export const DEFAULT_FEED_SETTINGS: FeedSettingsData = {
   hidePaywalled: false,
+  readerMode: false,
 }
 
 export async function loadFeedSettings(): Promise<FeedSettingsData> {
@@ -70,6 +72,18 @@ export default function FeedSettings({ onChange }: Props) {
           onValueChange={() => toggle('hidePaywalled')}
           trackColor={{ false: '#2a2a3e', true: '#9b59b6' }}
           thumbColor={settings.hidePaywalled ? '#fff' : '#555'}
+        />
+      </View>
+      <View style={[styles.row, { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#2a2a3e' }]}>
+        <View style={styles.rowText}>
+          <Text style={styles.rowTitle}>Reader Mode</Text>
+          <Text style={styles.rowSubtitle}>Always open articles in clean reader view</Text>
+        </View>
+        <Switch
+          value={settings.readerMode}
+          onValueChange={() => toggle('readerMode')}
+          trackColor={{ false: '#2a2a3e', true: '#9b59b6' }}
+          thumbColor={settings.readerMode ? '#fff' : '#555'}
         />
       </View>
     </View>
