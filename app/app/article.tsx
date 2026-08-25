@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
   readerButton: {
     borderRadius: 20, width: 36, height: 36,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: '#2a2a3e',
+    borderWidth: 1, borderColor: '#2a2a3e', marginRight: 4,
   },
   readerButtonText: { color: '#555', fontSize: 13, fontWeight: '800' },
   readerButtonTextActive: { color: '#fff' },
