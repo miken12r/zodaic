@@ -24,6 +24,10 @@ export default function TabLayout() {
         options={{ title: 'PortAils', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🌀</Text> }}
       />
       <Tabs.Screen
+        name="sites"
+        options={{ title: 'Sites', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🌐</Text> }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{ title: 'Profile', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>☽</Text> }}
       />

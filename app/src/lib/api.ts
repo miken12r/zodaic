@@ -337,6 +337,52 @@ export async function unfollowUser(followerId: string, followingId: string): Pro
   if (error) throw error
 }
 
+// ── Sites ──────────────────────────────────────────────────────────────────
+
+export type Site = {
+  id: string
+  name: string
+  url: string
+  description: string
+  zodaic_sign_id: number
+  is_curated: boolean
+  is_following?: boolean
+}
+
+export async function fetchSites(userId: string, signId?: number): Promise<Site[]> {
+  let query = supabase.from('sites').select('*').order('name')
+  if (signId) query = query.eq('zodaic_sign_id', signId)
+  const { data: sites, error } = await query
+  if (error) throw error
+
+  const { data: follows } = await supabase
+    .from('user_site_follows')
+    .select('site_id')
+    .eq('user_id', userId)
+
+  const followedSet = new Set((follows ?? []).map((f) => f.site_id))
+  return (sites ?? []).map((s) => ({ ...s, is_following: followedSet.has(s.id) }))
+}
+
+export async function fetchFollowedSites(userId: string): Promise<Site[]> {
+  const { data: follows, error } = await supabase
+    .from('user_site_follows')
+    .select('site:sites(*)')
+    .eq('user_id', userId)
+  if (error) throw error
+  return (follows ?? []).map((f: any) => ({ ...f.site, is_following: true }))
+}
+
+export async function followSite(userId: string, siteId: string): Promise<void> {
+  const { error } = await supabase.from('user_site_follows').insert({ user_id: userId, site_id: siteId })
+  if (error) throw error
+}
+
+export async function unfollowSite(userId: string, siteId: string): Promise<void> {
+  const { error } = await supabase.from('user_site_follows').delete().eq('user_id', userId).eq('site_id', siteId)
+  if (error) throw error
+}
+
 // Share a horoscope or content affinity
 export async function createShare(
   userId: string,
