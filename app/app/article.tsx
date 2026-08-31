@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, ScrollView } from 'react-native'
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Dimensions } from 'react-native'
+import { ScrollView as GHScrollView } from 'react-native-gesture-handler'
 import { WebView } from 'react-native-webview'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -22,6 +23,8 @@ type ReaderBlock =
   | { type: 'divider' }
 
 const AD_IMAGE_PATTERNS = ['doubleclick', 'googlesyndication', 'adserver', 'tracking', 'pixel', 'beacon', 'analytics', '1x1', 'spacer', 'ad.', '/ads/']
+
+const SCREEN_HEIGHT = Dimensions.get('window').height
 
 function isAdImage(src: string): boolean {
   const lower = src.toLowerCase()
@@ -302,10 +305,11 @@ export default function ArticleScreen() {
       )}
     </View>
 
-      <Modal visible={lensVisible} transparent animationType="slide" onRequestClose={() => setLensVisible(false)}>
+      {lensVisible && (
+        <View style={StyleSheet.absoluteFillObject}>
         <TouchableOpacity style={styles.lensBackdrop} activeOpacity={1} onPress={() => setLensVisible(false)}>
           <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-            <View style={[styles.lensSheet, sign ? { borderTopColor: sign.color } : {}]}>
+            <View style={[styles.lensSheet, { maxHeight: SCREEN_HEIGHT - insets.top - 40 }, sign ? { borderTopColor: sign.color } : {}]}>
               <View style={styles.lensSheetHeader}>
                 <Text style={styles.lensSheetSymbol}>{sign?.symbol}</Text>
                 <Text style={[styles.lensSheetTitle, { color: sign?.color ?? '#9b59b6' }]}>
@@ -318,7 +322,10 @@ export default function ArticleScreen() {
                   <Text style={styles.lensSpinnerText}>Generating your lens reading…</Text>
                 </View>
               ) : (
-                <ScrollView>
+                <GHScrollView
+                  style={[styles.lensScroll, { maxHeight: SCREEN_HEIGHT - insets.top - 300 }]}
+                  showsVerticalScrollIndicator
+                >
                   <Text style={styles.lensIntro}>{lensText.intro}</Text>
                   <View style={styles.lensBullets}>
                     {lensText.bullets.map((b, i) => (
@@ -328,7 +335,7 @@ export default function ArticleScreen() {
                       </View>
                     ))}
                   </View>
-                </ScrollView>
+                </GHScrollView>
               )}
               <TouchableOpacity
                 style={[styles.lensDoneButton, { backgroundColor: sign?.color ?? '#9b59b6' }]}
@@ -339,7 +346,8 @@ export default function ArticleScreen() {
             </View>
           </TouchableOpacity>
         </TouchableOpacity>
-      </Modal>
+        </View>
+      )}
     </>
   )
 }
@@ -401,12 +409,14 @@ const styles = StyleSheet.create({
   lensSheet: {
     backgroundColor: '#1a1a2e', borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, paddingBottom: 48, borderTopWidth: 3,
+    overflow: 'hidden',
   },
   lensSheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
   lensSheetSymbol: { fontSize: 28 },
   lensSheetTitle: { fontSize: 16, fontWeight: '800', flexShrink: 1 },
   lensSpinner: { alignItems: 'center', paddingVertical: 32, gap: 12 },
   lensSpinnerText: { color: '#555', fontSize: 13 },
+  lensScroll: { flexGrow: 0, flexShrink: 1 },
   lensIntro: { color: '#ddd', fontSize: 15, lineHeight: 24, marginBottom: 16 },
   lensBullets: { gap: 12 },
   lensBulletRow: { flexDirection: 'row', gap: 10 },
