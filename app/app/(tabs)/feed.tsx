@@ -116,15 +116,17 @@ export default function PortAilsScreen() {
 
   return (
     <>
+    <View style={styles.screen}>
+      <View style={styles.fixedHeader}>
+        <Text style={styles.title}>PortAils</Text>
+        {primarySign && (
+          <Text style={styles.subtitle}>
+            <Text style={{ color: primarySign.color }}>{primarySign.symbol} {primarySign.name}</Text>
+            {' '}· Today's internet guidance
+          </Text>
+        )}
+      </View>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>PortAils</Text>
-      {primarySign && (
-        <Text style={styles.subtitle}>
-          <Text style={{ color: primarySign.color }}>{primarySign.symbol} {primarySign.name}</Text>
-          {' '}· Today's internet guidance
-        </Text>
-      )}
-
       <View style={styles.adviceCard}>
         <Text style={styles.adviceLabel}>✦ Seek</Text>
         <Text style={styles.adviceText}>{portails.best_advice}</Text>
@@ -197,14 +199,17 @@ export default function PortAilsScreen() {
         })}
       </View>
     </ScrollView>
+    </View>
     <SignDetailModal signId={selectedSignId} onClose={() => setSelectedSignId(null)} />
     </>
   )
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#0d0d1a' },
+  fixedHeader: { paddingHorizontal: 24, paddingTop: 60, backgroundColor: '#0d0d1a' },
   container: { flex: 1, backgroundColor: '#0d0d1a' },
-  content: { padding: 24, paddingTop: 60, paddingBottom: 40 },
+  content: { padding: 24, paddingTop: 12, paddingBottom: 40 },
   center: { flex: 1, backgroundColor: '#0d0d1a', justifyContent: 'center', alignItems: 'center', padding: 32, gap: 16 },
   loadingText: { color: '#9b59b6', fontSize: 15 },
   errorText: { color: '#666', fontSize: 15, textAlign: 'center' },

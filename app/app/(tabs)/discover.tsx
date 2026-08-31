@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Alert } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, FlatList, Alert } from 'react-native'
 import SignDetailModal from '@/components/SignDetailModal'
 import UserProfileSheet from '@/components/UserProfileSheet'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -158,26 +158,29 @@ export default function DiscoverScreen() {
   return (
     <>
     <SignDetailModal signId={selectedSignId} onClose={() => setSelectedSignId(null)} />
-    <ScrollView ref={scrollRef} style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Discover</Text>
+    <View style={styles.screen}>
+      <View style={styles.fixedHeader}>
+        <Text style={styles.title}>Discover</Text>
 
-      {/* Segment control */}
-      <View style={styles.segmentControl}>
-        <TouchableOpacity
-          style={[styles.segment, activeTab === 'classify' && styles.segmentActive]}
-          onPress={() => setActiveTab('classify')}
-        >
-          <Text style={[styles.segmentText, activeTab === 'classify' && styles.segmentTextActive]}>Classify</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.segment, activeTab === 'people' && styles.segmentActive]}
-          onPress={() => setActiveTab('people')}
-        >
-          <Text style={[styles.segmentText, activeTab === 'people' && styles.segmentTextActive]}>People</Text>
-        </TouchableOpacity>
+        {/* Segment control */}
+        <View style={styles.segmentControl}>
+          <TouchableOpacity
+            style={[styles.segment, activeTab === 'classify' && styles.segmentActive]}
+            onPress={() => setActiveTab('classify')}
+          >
+            <Text style={[styles.segmentText, activeTab === 'classify' && styles.segmentTextActive]}>Classify</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.segment, activeTab === 'people' && styles.segmentActive]}
+            onPress={() => setActiveTab('people')}
+          >
+            <Text style={[styles.segmentText, activeTab === 'people' && styles.segmentTextActive]}>People</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {activeTab === 'classify' && <>
+      {activeTab === 'classify' && (
+      <ScrollView ref={scrollRef} style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.subtitle}>Enter any URL to reveal its ZodAIc sign.</Text>
       <View style={styles.inputRow}>
         <TextInput
@@ -305,35 +308,43 @@ export default function DiscoverScreen() {
           })}
         </View>
       )}
-      </>}
+      </ScrollView>
+      )}
 
       {activeTab === 'people' && (
-        <View style={styles.peopleSection}>
-          <View style={styles.searchRow}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search people..."
-              placeholderTextColor="#555"
-              value={peopleSearch}
-              onChangeText={setPeopleSearch}
-              autoCapitalize="none"
-              returnKeyType="search"
-            />
-            {peopleSearch.length > 0 && (
-              <TouchableOpacity style={styles.searchClear} onPress={() => setPeopleSearch('')}>
-                <Text style={styles.searchClearText}>✕</Text>
-              </TouchableOpacity>
-            )}
+        <>
+          <View style={styles.fixedSubHeader}>
+            <View style={styles.searchRow}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search people..."
+                placeholderTextColor="#555"
+                value={peopleSearch}
+                onChangeText={setPeopleSearch}
+                autoCapitalize="none"
+                returnKeyType="search"
+              />
+              {peopleSearch.length > 0 && (
+                <TouchableOpacity style={styles.searchClear} onPress={() => setPeopleSearch('')}>
+                  <Text style={styles.searchClearText}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
-          {filteredPeople.length === 0 ? (
-            <Text style={styles.peopleEmpty}>
-              {peopleSearch ? 'No users match your search.' : 'No other users yet — invite someone!'}
-            </Text>
-          ) : (
-            filteredPeople.map((person) => {
+          <FlatList
+            style={styles.container}
+            contentContainerStyle={styles.peopleList}
+            data={filteredPeople}
+            keyExtractor={(person) => person.id}
+            ListEmptyComponent={
+              <Text style={styles.peopleEmpty}>
+                {peopleSearch ? 'No users match your search.' : 'No other users yet — invite someone!'}
+              </Text>
+            }
+            renderItem={({ item: person }) => {
               const sign = person.primary_zodaic_sign_id ? SIGN_BY_ID[person.primary_zodaic_sign_id] : null
               return (
-                <View key={person.id} style={styles.personRow}>
+                <View style={styles.personRow}>
                   <TouchableOpacity style={styles.personInfo} onPress={() => setSelectedUserId(person.id)}>
                     <Text style={styles.personAvatar}>{sign?.symbol ?? '☽'}</Text>
                     <View>
@@ -352,11 +363,11 @@ export default function DiscoverScreen() {
                   </TouchableOpacity>
                 </View>
               )
-            })
-          )}
-        </View>
+            }}
+          />
+        </>
       )}
-    </ScrollView>
+    </View>
 
     {currentUserId && (
       <UserProfileSheet
@@ -370,10 +381,14 @@ export default function DiscoverScreen() {
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#0d0d1a' },
+  fixedHeader: { paddingHorizontal: 24, paddingTop: 60, backgroundColor: '#0d0d1a' },
+  fixedSubHeader: { paddingHorizontal: 24, paddingTop: 16, backgroundColor: '#0d0d1a' },
   container: { flex: 1, backgroundColor: '#0d0d1a' },
-  content: { padding: 24, paddingTop: 60 },
+  content: { padding: 24, paddingTop: 12 },
+  peopleList: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 32 },
   title: { fontSize: 28, fontWeight: '800', color: '#fff', marginBottom: 16 },
-  segmentControl: { flexDirection: 'row', backgroundColor: '#1a1a2e', borderRadius: 12, padding: 4, marginBottom: 24 },
+  segmentControl: { flexDirection: 'row', backgroundColor: '#1a1a2e', borderRadius: 12, padding: 4, marginBottom: 8 },
   segment: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
   segmentActive: { backgroundColor: '#9b59b6' },
   segmentText: { color: '#555', fontSize: 14, fontWeight: '700' },
@@ -453,7 +468,6 @@ const styles = StyleSheet.create({
   historyName: { color: '#ddd', fontSize: 14, fontWeight: '600' },
   historyUrl: { color: '#555', fontSize: 11, marginTop: 2 },
   historySign: { fontSize: 11, fontWeight: '700' },
-  peopleSection: { marginTop: 8 },
   peopleEmpty: { color: '#555', fontSize: 14, fontStyle: 'italic', textAlign: 'center', paddingVertical: 32 },
   searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a2e', borderRadius: 12, borderWidth: 1, borderColor: '#2a2a3e', marginBottom: 16 },
   searchInput: { flex: 1, color: '#fff', fontSize: 15, padding: 14 },

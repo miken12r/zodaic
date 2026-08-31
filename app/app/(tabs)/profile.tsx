@@ -138,14 +138,14 @@ export default function ProfileScreen() {
   const primarySign = profile?.primary_zodaic_sign_id ? SIGN_BY_ID[profile.primary_zodaic_sign_id] : null
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
+    <View style={styles.screen}>
+      <View style={styles.fixedHeader}>
         <Text style={styles.title}>Profile</Text>
         <TouchableOpacity onPress={signOut}>
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
       </View>
-
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {followCounts && (
         <View style={styles.countsRow}>
           <View style={styles.countItem}>
@@ -244,13 +244,19 @@ export default function ProfileScreen() {
 
       <FeedSettings />
     </ScrollView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#0d0d1a' },
+  fixedHeader: {
+    paddingHorizontal: 24, paddingTop: 60, paddingBottom: 16,
+    backgroundColor: '#0d0d1a',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+  },
   container: { flex: 1, backgroundColor: '#0d0d1a' },
-  content: { padding: 24, paddingTop: 60, paddingBottom: 32 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  content: { padding: 24, paddingTop: 8, paddingBottom: 32 },
   title: { fontSize: 28, fontWeight: '800', color: '#fff' },
   signOutText: { color: '#9b59b6', fontSize: 14, fontWeight: '600' },
   countsRow: { flexDirection: 'row', backgroundColor: '#1a1a2e', borderRadius: 16, padding: 16, marginBottom: 20 },

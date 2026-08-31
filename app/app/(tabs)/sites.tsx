@@ -46,7 +46,7 @@ export default function SitesScreen() {
 
   const displayed = showFollowing ? sites.filter((s) => s.is_following) : sites
 
-  const renderHeader = () => (
+  const renderFixedHeader = () => (
     <>
       <Text style={styles.title}>Sites</Text>
 
@@ -100,12 +100,13 @@ export default function SitesScreen() {
 
   return (
     <>
-      <FlatList
+      <View style={styles.screen}>
+        <View style={styles.fixedHeader}>{renderFixedHeader()}</View>
+        <FlatList
         style={styles.container}
         contentContainerStyle={styles.list}
         data={displayed}
         keyExtractor={(s) => s.id}
-        ListHeaderComponent={renderHeader}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyText}>
@@ -136,15 +137,18 @@ export default function SitesScreen() {
             </TouchableOpacity>
           )
         }}
-      />
+        />
+      </View>
       <SignDetailModal signId={selectedSignId} onClose={() => setSelectedSignId(null)} />
     </>
   )
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#0d0d1a' },
+  fixedHeader: { paddingHorizontal: 16, paddingTop: 60, backgroundColor: '#0d0d1a' },
   container: { flex: 1, backgroundColor: '#0d0d1a' },
-  list: { padding: 16, paddingTop: 60, paddingBottom: 32 },
+  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
   center: { flex: 1, backgroundColor: '#0d0d1a', justifyContent: 'center', alignItems: 'center' },
   title: { fontSize: 28, fontWeight: '800', color: '#fff', marginBottom: 16 },
   signScroll: { marginHorizontal: -16, marginBottom: 12 },

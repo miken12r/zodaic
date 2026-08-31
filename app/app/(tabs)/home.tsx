@@ -192,60 +192,59 @@ export default function HomeScreen() {
     await saveDismissed(id, reason, signId)
   }
 
-  const renderHeader = () => {
-    const filterSign = filterSignIds.size === 1 ? SIGN_BY_ID[[...filterSignIds][0]] : null
-    return (
-      <>
-        <TouchableOpacity style={styles.headerRow} onPress={() => router.push('/(tabs)/profile')}>
-          <Text style={styles.headerLabel}>Your sign: </Text>
-          {primarySign ? (
-            <>
-              <Text style={styles.headerSymbol}>{primarySign.symbol}</Text>
-              <Text style={[styles.headerSignName, { color: primarySign.color }]}>{primarySign.name}</Text>
-            </>
-          ) : (
-            <Text style={styles.headerSignName}>Set up your profile →</Text>
-          )}
-        </TouchableOpacity>
-        <View style={styles.headerSubtitleRow}>
-          <Text style={styles.headerSubtitle}>
-            {primarySign ? 'Stories ranked by your sign compatibility' : 'Showing trending stories across all signs'}
-          </Text>
-          {primarySign && (
-            <TouchableOpacity onPress={() => setExplainerVisible(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.infoIcon}>ⓘ</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {!primarySign && (
-          <TouchableOpacity style={styles.setupBanner} onPress={() => router.push('/(tabs)/profile')}>
-            <Text style={styles.setupBannerTitle}>✦ Discover your digital sign</Text>
-            <Text style={styles.setupBannerBody}>
-              Add your birth date to unlock a personalized feed ranked by your sign's compatibility.
-            </Text>
-            <Text style={styles.setupBannerCta}>Set up profile →</Text>
+  const renderFixedHeader = () => (
+    <>
+      <TouchableOpacity style={styles.headerRow} onPress={() => router.push('/(tabs)/profile')}>
+        <Text style={styles.headerLabel}>Your sign: </Text>
+        {primarySign ? (
+          <>
+            <Text style={styles.headerSymbol}>{primarySign.symbol}</Text>
+            <Text style={[styles.headerSignName, { color: primarySign.color }]}>{primarySign.name}</Text>
+          </>
+        ) : (
+          <Text style={styles.headerSignName}>Set up your profile →</Text>
+        )}
+      </TouchableOpacity>
+      <View style={styles.headerSubtitleRow}>
+        <Text style={styles.headerSubtitle}>
+          {primarySign ? 'Stories ranked by your sign compatibility' : 'Showing trending stories across all signs'}
+        </Text>
+        {primarySign && (
+          <TouchableOpacity onPress={() => setExplainerVisible(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.infoIcon}>ⓘ</Text>
           </TouchableOpacity>
         )}
+      </View>
 
-        <TouchableOpacity style={styles.filterButton} onPress={() => setFilterModalVisible(true)}>
-          <Text style={styles.filterButtonText}>
-            {filterSignIds.size === 0
-              ? 'All Signs'
-              : filterSignIds.size === 1
-              ? SIGN_BY_ID[[...filterSignIds][0]]?.name
-              : `${filterSignIds.size} Signs`}
-          </Text>
-          {filterSignIds.size > 0 && (
-            <TouchableOpacity onPress={() => setFilterSignIds(new Set())} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.filterClear}>✕</Text>
-            </TouchableOpacity>
-          )}
-          <Text style={styles.filterChevron}>▾</Text>
-        </TouchableOpacity>
-      </>
-    )
-  }
+      <TouchableOpacity style={styles.filterButton} onPress={() => setFilterModalVisible(true)}>
+        <Text style={styles.filterButtonText}>
+          {filterSignIds.size === 0
+            ? 'All Signs'
+            : filterSignIds.size === 1
+            ? SIGN_BY_ID[[...filterSignIds][0]]?.name
+            : `${filterSignIds.size} Signs`}
+        </Text>
+        {filterSignIds.size > 0 && (
+          <TouchableOpacity onPress={() => setFilterSignIds(new Set())} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.filterClear}>✕</Text>
+          </TouchableOpacity>
+        )}
+        <Text style={styles.filterChevron}>▾</Text>
+      </TouchableOpacity>
+    </>
+  )
+
+  const renderListHeader = () => (
+    !primarySign ? (
+      <TouchableOpacity style={styles.setupBanner} onPress={() => router.push('/(tabs)/profile')}>
+        <Text style={styles.setupBannerTitle}>✦ Discover your digital sign</Text>
+        <Text style={styles.setupBannerBody}>
+          Add your birth date to unlock a personalized feed ranked by your sign's compatibility.
+        </Text>
+        <Text style={styles.setupBannerCta}>Set up profile →</Text>
+      </TouchableOpacity>
+    ) : null
+  )
 
   const renderItem = ({ item }: { item: FeedItem }) => {
     if (item.type === 'news') {
@@ -344,24 +343,27 @@ export default function HomeScreen() {
 
   return (
     <>
-      <FlatList
-        style={styles.container}
-        data={filteredItems}
-        keyExtractor={(item, i) => `${item.type}-${i}`}
-        renderItem={renderItem}
-        ListHeaderComponent={renderHeader}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>
-              {primarySign
-                ? 'No content for this sign yet — try another or pull to refresh.'
-                : 'No trending content yet — check back soon.'}
-            </Text>
-          </View>
-        }
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#9b59b6" />}
-        contentContainerStyle={styles.list}
-      />
+      <View style={styles.screen}>
+        <View style={styles.fixedHeader}>{renderFixedHeader()}</View>
+        <FlatList
+          style={styles.container}
+          data={filteredItems}
+          keyExtractor={(item, i) => `${item.type}-${i}`}
+          renderItem={renderItem}
+          ListHeaderComponent={renderListHeader}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>
+                {primarySign
+                  ? 'No content for this sign yet — try another or pull to refresh.'
+                  : 'No trending content yet — check back soon.'}
+              </Text>
+            </View>
+          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#9b59b6" />}
+          contentContainerStyle={styles.list}
+        />
+      </View>
 
       <SignDetailModal signId={selectedSignId} onClose={() => setSelectedSignId(null)} />
       {currentUserId && (
@@ -472,13 +474,15 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#0d0d1a' },
+  fixedHeader: { paddingHorizontal: 16, paddingTop: 60, backgroundColor: '#0d0d1a' },
   container: { flex: 1, backgroundColor: '#0d0d1a' },
-  list: { padding: 16, paddingTop: 60, paddingBottom: 32 },
+  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
   center: { flex: 1, backgroundColor: '#0d0d1a', justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { color: '#9b59b6', fontSize: 15 },
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' },
   headerLabel: { fontSize: 22, fontWeight: '800', color: '#fff' },
-  headerSubtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 40, marginTop: -6 },
+  headerSubtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16, marginTop: -6 },
   headerSubtitle: { color: '#888', fontSize: 14, fontStyle: 'italic' },
   infoIcon: { color: '#555', fontSize: 15 },
   explainerSheet: {
