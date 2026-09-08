@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SIGN_BY_ID } from '@/constants/signs'
 import { createShare, generateLens, extractArticle } from '@/lib/api'
+import { getOrGenerateSignTake } from '@/lib/signTakes'
 import { supabase } from '@/lib/supabase'
 import SignDetailModal from '@/components/SignDetailModal'
 import { loadFeedSettings, saveFeedSettings } from '@/components/FeedSettings'
@@ -137,6 +138,14 @@ export default function ArticleScreen() {
     }
     prefetch()
     return () => { cancelled = true }
+  }, [contentId])
+
+  // Passively backfill a sign take for this article if one doesn't exist yet — catches
+  // articles reached via any tab that isn't the Takes tab itself (Takes never links to
+  // an article without a take, by construction, since it queries sign_takes directly).
+  useEffect(() => {
+    if (!contentId || !signId) return
+    getOrGenerateSignTake({ content_id: contentId as string, zodaic_sign_id: parseInt(signId as string) }).catch(() => {})
   }, [contentId])
 
   async function handleLensOpen() {
