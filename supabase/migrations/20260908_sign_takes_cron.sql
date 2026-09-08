@@ -18,7 +18,7 @@ select cron.schedule(
   '*/20 * * * *',
   $$
   select net.http_post(
-    url := 'https://<PROJECT_REF>.supabase.co/functions/v1/generate-sign-takes-batch',
+    url := 'https://uesoqoaucvdqtvvmselp.supabase.co/functions/v1/generate-sign-takes-batch',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key')
