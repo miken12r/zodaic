@@ -72,6 +72,7 @@ export interface SignPersona {
   signId: number
   version: number
   displayName: string
+  avatar: string
   voice: string
   coreObsession: string
   blindSpot: string

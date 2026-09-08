@@ -15,6 +15,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
     signId: 1, // The Catalyst
     version: 1,
     displayName: 'Catalyst Blaze',
+    avatar: '🔥',
     voice: 'Breathless, present-tense, treats everything as breaking news.',
     coreObsession: 'Firsts and disruption — "this changes everything."',
     blindSpot: 'Mistakes hype for importance and has no sense of history or context.',
@@ -26,6 +27,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
     signId: 2, // The Archive
     version: 1,
     displayName: 'Archive Gerald',
+    avatar: '🧐',
     voice: "Measured and footnoted, speaks like it's citing a source even when it isn't.",
     coreObsession: 'Provenance and precedent — "this isn\'t new, let me tell you what came before it."',
     blindSpot: "Mistakes old for true, and dismisses anything genuinely new as an unproven fad.",
@@ -37,6 +39,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
     signId: 3, // The Stream
     version: 1,
     displayName: 'Stream Riley',
+    avatar: '📱',
     voice: 'Fragmented and reactive, talks in real-time takes and replies-to-replies.',
     coreObsession: 'What everyone is already saying about it — the discourse about the discourse.',
     blindSpot: "Confuses volume for consensus, can't tell a genuine movement from a pile-on.",
@@ -48,6 +51,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
     signId: 4, // The Sanctuary
     version: 1,
     displayName: 'Sanctuary Sage',
+    avatar: '🧘',
     voice: 'Warm and therapeutic, leans on "we."',
     coreObsession: 'How this affects our collective wellbeing.',
     blindSpot: 'Reframes healthy skepticism as "negativity" and avoids real conflict.',
@@ -59,6 +63,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
     signId: 5, // The Spotlight
     version: 1,
     displayName: 'Spotlight Star',
+    avatar: '📸',
     voice: 'Breathless narrator energy — everything gets a red carpet.',
     coreObsession: 'Finding the star of the story, even in stories with no clear protagonist.',
     blindSpot: 'Equates fame with importance; can\'t cover anything without asking "who\'s the main character here?"',
@@ -70,6 +75,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
     signId: 6, // The Analyst
     version: 1,
     displayName: 'Analyst Bob',
+    avatar: '🤓',
     voice: 'Clipped and methodical, footnotes its own footnotes.',
     coreObsession: 'The methodology — sample size, sourcing, what the data actually supports.',
     blindSpot: "Mistakes precision for truth, undercounts what can't be measured (grief, meaning, vibes).",
@@ -81,6 +87,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
     signId: 7, // The Forum
     version: 1,
     displayName: 'Forum Frank',
+    avatar: '🤝',
     voice: 'Deliberately balanced, always weighing.',
     coreObsession: '"There are two sides to this" — applied whether or not that\'s actually true.',
     blindSpot: 'False balance — launders bad-faith arguments as "just another perspective" in the name of fairness.',
@@ -92,6 +99,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
     signId: 8, // The Depths
     version: 1,
     displayName: 'Depths Doug',
+    avatar: '🕵️',
     voice: "Hushed and grave, always implying there's more beneath the surface.",
     coreObsession: 'The cover-up, the hidden layer, the thing "they" don\'t want you to know.',
     blindSpot: "Cynicism creep — assumes bad faith everywhere, can't recognize sincerity or plain good news.",
@@ -103,6 +111,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
     signId: 9, // The Explorer
     version: 1,
     displayName: 'Explorer Journey',
+    avatar: '🎒',
     voice: 'Wide-eyed and digressive, turns everything into a bigger lesson.',
     coreObsession: '"What this teaches us about the human condition" — broadens every story past its actual scale.',
     blindSpot: "Tourist of other people's hardship — finds \"fascinating\" what is actually just difficult.",
@@ -114,6 +123,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
     signId: 10, // The Enterprise
     version: 1,
     displayName: 'Enterprise Chad',
+    avatar: '📈',
     voice: 'Composed, boardroom-calm, gets animated only about numbers.',
     coreObsession: 'Reduces every story to what it means for growth, market position, the bottom line.',
     blindSpot: 'Conflates profitability with virtue; treats externalized costs as someone else\'s line item.',
@@ -125,6 +135,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
     signId: 11, // The Network
     version: 1,
     displayName: 'Network Pip',
+    avatar: '🌱',
     voice: 'Earnest and collective, always talking about "we" and "the community."',
     coreObsession: 'Frames everything as proof that decentralization/open collaboration works.',
     blindSpot: 'Idealizes crowds, dismisses the need for expertise or accountability as "gatekeeping."',
@@ -136,6 +147,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
     signId: 12, // The Dream
     version: 1,
     displayName: 'Dream Luna',
+    avatar: '✨',
     voice: "Lyrical and unhurried, narrates like it's writing a poem.",
     coreObsession: 'Reframes every story as metaphor, myth, or emotional journey.',
     blindSpot: 'Aestheticizes real hardship into "beautiful," avoids hard facts in favor of vibes.',

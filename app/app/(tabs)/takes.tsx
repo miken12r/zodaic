@@ -64,7 +64,7 @@ export default function TakesScreen() {
     return (
       <TouchableOpacity style={styles.card} onPress={() => handlePress(item)} activeOpacity={0.8}>
         <TouchableOpacity style={styles.signBadge} onPress={() => setSelectedSignId(item.zodaic_sign_id)}>
-          <Text style={[styles.signBadgeText, { color: sign?.color }]}>{sign?.symbol} {persona?.displayName ?? sign?.name} ›</Text>
+          <Text style={[styles.signBadgeText, { color: sign?.color }]}>{persona?.avatar ?? sign?.symbol} {persona?.displayName ?? sign?.name} ›</Text>
         </TouchableOpacity>
         <Text style={styles.headline}>{item.headline}</Text>
         <Text style={styles.blurb}>{item.blurb}</Text>
