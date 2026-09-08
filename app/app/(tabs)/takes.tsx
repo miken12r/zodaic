@@ -3,6 +3,7 @@ import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, To
 import { useFocusEffect, useRouter } from 'expo-router'
 import { fetchSignTakes, SignTake } from '@/lib/signTakes'
 import { SIGN_BY_ID } from '@/constants/signs'
+import { PERSONA_BY_SIGN_ID } from '@/constants/personas'
 import SignDetailModal from '@/components/SignDetailModal'
 
 const CACHE_TTL_MS = 5 * 60 * 1000
@@ -59,10 +60,11 @@ export default function TakesScreen() {
 
   const renderItem = ({ item }: { item: SignTake }) => {
     const sign = SIGN_BY_ID[item.zodaic_sign_id]
+    const persona = PERSONA_BY_SIGN_ID[item.zodaic_sign_id]
     return (
       <TouchableOpacity style={styles.card} onPress={() => handlePress(item)} activeOpacity={0.8}>
         <TouchableOpacity style={styles.signBadge} onPress={() => setSelectedSignId(item.zodaic_sign_id)}>
-          <Text style={[styles.signBadgeText, { color: sign?.color }]}>{sign?.symbol} {sign?.name} ›</Text>
+          <Text style={[styles.signBadgeText, { color: sign?.color }]}>{sign?.symbol} {persona?.displayName ?? sign?.name} ›</Text>
         </TouchableOpacity>
         <Text style={styles.headline}>{item.headline}</Text>
         <Text style={styles.blurb}>{item.blurb}</Text>
@@ -82,7 +84,7 @@ export default function TakesScreen() {
     <>
       <View style={styles.screen}>
         <View style={styles.fixedHeader}>
-          <Text style={styles.title}>Takes</Text>
+          <Text style={styles.title}>Hot Takes</Text>
           <Text style={styles.subtitle}>Every sign has an opinion. Some more than others.</Text>
         </View>
         <FlatList
