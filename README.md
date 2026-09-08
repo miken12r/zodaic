@@ -21,6 +21,7 @@ zodaic/
 │   │       ├── sites.tsx            # Browse/follow curated sites by sign
 │   │       ├── feed.tsx             # PortAils — AI-generated compatibility reading
 │   │       └── profile.tsx          # Birth date → sign, follow counts, feed settings
+│   ├── assets/                      # icon.png, splash.png, adaptive-icon.png — placeholders, swap for real branding
 │   └── src/
 │       ├── components/              # SignDetailModal, UserProfileSheet, FeedSettings
 │       ├── constants/signs.ts       # The 12 ZodAIc signs
@@ -101,12 +102,29 @@ supabase functions deploy fetch-news
 
 `fetch-news` is scheduled hourly via `pg_cron` (configured in the initial schema migration) rather than called from the app.
 
-### 6. Run the app
+### 6. Build and run the development client
+
+This project uses a custom [EAS development client](https://docs.expo.dev/development/introduction/) instead of Expo Go. Expo Go only ever supports the latest SDK version, so relying on it means the app can stop launching on your device the moment Expo ships a new SDK — a dev client we control lets us upgrade on our own schedule instead.
+
+**One-time setup** (per developer, per device — requires an Apple Developer Program membership, or access under the `ai-for-society` org's):
 
 ```bash
 cd ~/Projects/zodaic/app
-npx expo start --ios
+npx eas login                                        # your Expo/EAS account — ask to be added to the ai-for-society org
+npx eas device:create                                # registers your device for provisioning
+npx eas build --profile development --platform ios   # builds the dev client in the cloud
 ```
+
+Open the build page EAS gives you on your iOS device and tap Install.
+
+**Day-to-day:**
+
+```bash
+cd ~/Projects/zodaic/app
+npx expo start --dev-client
+```
+
+Scan the printed QR code with your device's camera — it opens in the installed dev client instead of Expo Go.
 
 ---
 
@@ -135,3 +153,4 @@ npx expo start --ios
 - **Supabase over custom backend** — auth, database, real-time, and edge functions in one; no server to manage
 - **Claude API for classification** — LLM semantic understanding handles the nuanced task of mapping content to signs far better than rules-based approaches
 - **Edge Functions over a separate API** — API keys stay server-side, latency is low, no extra infrastructure
+- **Custom EAS dev client over Expo Go** — Expo Go only supports the latest SDK, so it broke device testing outright the first time Expo shipped a new one. A dev client we control costs an Apple Developer Program membership and some build setup, but decouples us from Apple's/Expo's release schedule
