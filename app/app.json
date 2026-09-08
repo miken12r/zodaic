@@ -14,7 +14,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "online.ai4society.zodaic"
+      "bundleIdentifier": "online.ai4society.zodaic",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -29,6 +32,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d0362822-b2c5-4f01-b162-8c1a1df468e4"
+      }
+    },
+    "owner": "ai-for-society"
   }
 }
