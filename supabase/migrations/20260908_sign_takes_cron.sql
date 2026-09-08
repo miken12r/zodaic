@@ -1,6 +1,8 @@
--- Schedules generate-sign-takes-batch every 30 minutes. The batch cap
--- (BATCH_GENERATION_LIMIT in the function itself) is what actually bounds Anthropic
--- spend; this cadence just determines how quickly the Takes tab fills in.
+-- Schedules generate-sign-takes-batch every 20 minutes (3x/hour), run against a
+-- 15/run cap. fetch-news classifies 7-22 articles/hour (observed), so 3 runs/hour
+-- gives headroom over peak hours without raising the per-run cap — idle runs cost
+-- nothing (no uncovered candidates means no Claude calls), so this doesn't spend
+-- more than the actual ingestion volume warrants.
 --
 -- IMPORTANT — one-time manual step before this migration will work:
 -- the service role key is never committed here. Run this once in the Supabase SQL
@@ -13,7 +15,7 @@ create extension if not exists pg_net;
 
 select cron.schedule(
   'generate-sign-takes-batch',
-  '*/30 * * * *',
+  '*/20 * * * *',
   $$
   select net.http_post(
     url := 'https://<PROJECT_REF>.supabase.co/functions/v1/generate-sign-takes-batch',

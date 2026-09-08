@@ -20,24 +20,31 @@ zodaic/
 │   │       ├── discover.tsx         # Classify any URL + find people
 │   │       ├── sites.tsx            # Browse/follow curated sites by sign
 │   │       ├── feed.tsx             # PortAils — AI-generated compatibility reading
+│   │       ├── takes.tsx            # Hot Takes — persona-voiced headline/blurb feed
 │   │       └── profile.tsx          # Birth date → sign, follow counts, feed settings
 │   ├── assets/                      # icon.png, splash.png, adaptive-icon.png — placeholders, swap for real branding
 │   └── src/
 │       ├── components/              # SignDetailModal, UserProfileSheet, FeedSettings
-│       ├── constants/signs.ts       # The 12 ZodAIc signs
+│       ├── constants/
+│       │   ├── signs.ts             # The 12 ZodAIc signs (identity: name/color/symbol)
+│       │   └── personas.ts          # Character-sheet data (voice/displayName/avatar) each sign's Hot Takes draw on
 │       ├── lib/
 │       │   ├── supabase.ts          # Supabase client
-│       │   └── api.ts               # API calls
+│       │   ├── api.ts               # API calls
+│       │   └── signTakes.ts         # Hot Takes data layer — kept separate from api.ts, see Key Decisions
 │       └── types/index.ts           # TypeScript types
 └── supabase/
     ├── migrations/                  # Database schema (run in order — see Setup)
     └── functions/
+        ├── _shared/                 # personas.ts (Deno mirror of the client's) + generateSignTake.ts (shared Claude-call core)
         ├── classify-content/        # Claude-powered URL → sign classifier
         ├── generate-horoscope/      # Claude-powered weekly/monthly horoscope generator
         ├── generate-portails/       # Compatibility reading across all 12 signs
         ├── generate-lens/           # "Read through [sign] eyes" article summary
         ├── extract-article/         # Readability-based extraction for reader mode
-        └── fetch-news/              # Hourly news ingestion (NewsAPI + Claude haiku), pg_cron-scheduled
+        ├── fetch-news/              # Hourly news ingestion (NewsAPI + Claude haiku), pg_cron-scheduled
+        ├── generate-sign-take/      # On-demand Hot Takes generation (cache-or-generate-then-persist)
+        └── generate-sign-takes-batch/ # Batch Hot Takes generation, pg_cron-scheduled every 20 min
 ```
 
 ---
@@ -68,6 +75,11 @@ npm install -g expo-cli
    - `20260812_initial_schema.sql`
    - `20260820_lens_text.sql`
    - `20260826_sites.sql`
+   - `20260908_sign_takes.sql`
+   - `20260908_sign_takes_cron.sql` — before running this one, store the service role
+     key in Vault (`select vault.create_secret('<your-service-role-key>', 'service_role_key');`)
+     and replace `<PROJECT_REF>` in the file with this project's actual ref; see the
+     comment at the top of the file
 3. Copy your project URL and anon key from Settings → API
 
 ### 4. Set up environment variables
@@ -98,9 +110,25 @@ supabase functions deploy generate-portails
 supabase functions deploy generate-lens
 supabase functions deploy extract-article
 supabase functions deploy fetch-news
+supabase functions deploy generate-sign-take
+supabase functions deploy generate-sign-takes-batch
 ```
 
-`fetch-news` is scheduled hourly via `pg_cron` (configured in the initial schema migration) rather than called from the app.
+`fetch-news` is scheduled hourly via `pg_cron`, confirmed live on the project
+(`0 * * * *`) — this schedule is **not** tracked in any migration, only configured
+directly on the hosted project, so it won't be reproduced by re-running this repo's
+migrations alone. `generate-sign-takes-batch` runs every 20 minutes via the
+`20260908_sign_takes_cron.sql` migration (properly tracked, unlike `fetch-news`'s);
+its cadence and cap were sized against `fetch-news`'s observed output of 7-22
+articles/hour — see the comment above `BATCH_GENERATION_LIMIT` in
+`generate-sign-takes-batch/index.ts` if that volume changes significantly.
+
+To generate a batch of Hot Takes on demand (rather than waiting for the cron), invoke
+`generate-sign-takes-batch` directly:
+```bash
+curl -X POST "https://<PROJECT_REF>.supabase.co/functions/v1/generate-sign-takes-batch" \
+  -H "Authorization: Bearer <SERVICE_ROLE_KEY>" -H "Content-Type: application/json" -d '{}'
+```
 
 ### 6. Build and run the development client
 
@@ -154,3 +182,5 @@ Scan the printed QR code with your device's camera — it opens in the installed
 - **Claude API for classification** — LLM semantic understanding handles the nuanced task of mapping content to signs far better than rules-based approaches
 - **Edge Functions over a separate API** — API keys stay server-side, latency is low, no extra infrastructure
 - **Custom EAS dev client over Expo Go** — Expo Go only supports the latest SDK, so it broke device testing outright the first time Expo shipped a new one. A dev client we control costs an Apple Developer Program membership and some build setup, but decouples us from Apple's/Expo's release schedule
+- **Hot Takes built as its own module, not folded into Home** — the Takes tab may become the new home screen after UI iteration, so its table, edge functions, and client data layer (`signTakes.ts`, deliberately not added to `api.ts`) are kept separate from `home.tsx`'s code so it can be lifted out or promoted later without untangling
+- **Shared generation core for Hot Takes** — both the on-demand and batch edge functions call one `_shared/generateSignTake.ts` rather than each duplicating the Claude call, specifically to avoid repeating this codebase's existing pattern of drifting duplicate sign-trait copies across `classify-content`/`fetch-news`/`generate-lens`. Persona data itself still has two sources of truth (client `constants/personas.ts`, edge `_shared/personas.ts`) since edge functions can't import the client's path-aliased file — kept in sync by hand, not automated
