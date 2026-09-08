@@ -68,6 +68,21 @@ export interface UserSignAffinity {
   zodaic_sign?: ZodaicSign
 }
 
+export interface SignPersona {
+  signId: number
+  version: number
+  voice: string
+  coreObsession: string
+  blindSpot: string
+  catchphrases: string[]
+  reactionTemperature: string
+  relationships?: {
+    rivals?: number[]
+    kindred?: number[]
+  }
+  notes?: string
+}
+
 export interface Share {
   id: string
   user_id: string
