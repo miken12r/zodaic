@@ -16,16 +16,16 @@ export default function TabLayout() {
         options={{ title: 'Home', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🏠</Text> }}
       />
       <Tabs.Screen
-        name="discover"
-        options={{ title: 'Discover', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🔍</Text> }}
+        name="sites"
+        options={{ title: 'Sites', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🌐</Text> }}
       />
       <Tabs.Screen
         name="feed"
         options={{ title: 'PortAils', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🌀</Text> }}
       />
       <Tabs.Screen
-        name="sites"
-        options={{ title: 'Sites', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🌐</Text> }}
+        name="discover"
+        options={{ title: 'Discover', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🔍</Text> }}
       />
       <Tabs.Screen
         name="profile"
