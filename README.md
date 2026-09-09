@@ -90,6 +90,26 @@ cp .env.example .env
 # Edit .env with your Supabase URL and anon key
 ```
 
+**This `.env` file only covers local development** (`npx expo start --dev-client` reads it
+directly off disk via Metro). A cloud build (`eas build --profile production` or
+`preview`) runs on Expo's servers, which have no access to your local filesystem —
+without a separate step, the compiled app silently ships with no Supabase URL/key at all
+and crashes on launch. Register the same values with EAS once, and they'll be baked into
+every future cloud build automatically:
+
+```bash
+npx eas env:set --name EXPO_PUBLIC_SUPABASE_URL --value "<your-supabase-url>" \
+  --environment production preview development --visibility plaintext --scope project
+
+npx eas env:set --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "<your-anon-key>" \
+  --environment production preview development --visibility plaintext --scope project
+```
+
+`--visibility plaintext` is correct here specifically because these are `EXPO_PUBLIC_*`
+variables — they're inlined into the client JS bundle regardless (anyone can extract them
+from the compiled app), and the anon key is Supabase's own "publishable" key type. Don't
+use `plaintext` for anything that isn't meant to be public.
+
 ### 5. Deploy Supabase Edge Functions
 
 ```bash
