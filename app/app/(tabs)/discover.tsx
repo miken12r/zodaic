@@ -2,15 +2,11 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, FlatList, Alert } from 'react-native'
 import SignDetailModal from '@/components/SignDetailModal'
 import UserProfileSheet from '@/components/UserProfileSheet'
-import AsyncStorage from '@react-native-async-storage/async-storage'
-import { classifyContent, createShare, fetchTopUrlsForSign, fetchContentItem, fetchUsers, followUser, unfollowUser } from '@/lib/api'
+import { createShare, fetchTopUrlsForSign, fetchContentItem, fetchUsers, followUser, unfollowUser } from '@/lib/api'
 import { ContentItem } from '@/types'
 import { SIGN_BY_ID } from '@/constants/signs'
 import { supabase } from '@/lib/supabase'
 import { useFocusEffect, useLocalSearchParams, useRouter, useNavigation } from 'expo-router'
-
-const HISTORY_KEY = 'discover_history'
-const MAX_HISTORY = 20
 
 export default function DiscoverScreen() {
   const { signId, contentId } = useLocalSearchParams<{ signId?: string; contentId?: string }>()
@@ -34,12 +30,9 @@ export default function DiscoverScreen() {
   const filteredSignId = signId ? parseInt(signId) : null
   const filteredSign = filteredSignId ? SIGN_BY_ID[filteredSignId] : null
 
-  const [url, setUrl] = useState('')
-  const [loading, setLoading] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [result, setResult] = useState<ContentItem | null>(null)
   const [shared, setShared] = useState(false)
-  const [history, setHistory] = useState<ContentItem[]>([])
   const [filteredUrls, setFilteredUrls] = useState<ContentItem[]>([])
   const [filteredLoading, setFilteredLoading] = useState(false)
   const [selectedSignId, setSelectedSignId] = useState<number | null>(null)
@@ -52,9 +45,6 @@ export default function DiscoverScreen() {
   const scrollRef = useRef<ScrollView>(null)
 
   useFocusEffect(useCallback(() => {
-    AsyncStorage.getItem(HISTORY_KEY).then((raw) => {
-      if (raw) setHistory(JSON.parse(raw))
-    })
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
       setCurrentUserId(user.id)
@@ -65,7 +55,6 @@ export default function DiscoverScreen() {
       fetchContentItem(contentId).then((item) => {
         if (item) {
           setResult(item)
-          setUrl(item.url)
           setShared(false)
           scrollRef.current?.scrollTo({ y: 0, animated: false })
         }
@@ -84,30 +73,6 @@ export default function DiscoverScreen() {
       setFilteredUrls([])
     }
   }, [filteredSignId]))
-
-  async function addToHistory(item: ContentItem) {
-    const filtered = history.filter((h) => h.url !== item.url)
-    const updated = [item, ...filtered].slice(0, MAX_HISTORY)
-    setHistory(updated)
-    await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(updated))
-  }
-
-  async function handleClassify(classifyUrl?: string) {
-    const target = (classifyUrl ?? url).trim()
-    if (!target) return
-    setLoading(true)
-    setResult(null)
-    setShared(false)
-    try {
-      const item = await classifyContent(target)
-      setResult(item)
-      await addToHistory(item)
-    } catch (e) {
-      Alert.alert('Error', 'Could not classify this URL. Please try another.')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   async function handleShare() {
     if (!result) return
@@ -137,13 +102,6 @@ export default function DiscoverScreen() {
     } finally {
       setTogglingId(null)
     }
-  }
-
-  function handleHistoryTap(item: ContentItem) {
-    setUrl(item.url)
-    setResult(item)
-    setShared(false)
-    scrollRef.current?.scrollTo({ y: 0, animated: true })
   }
 
   const sign = result ? SIGN_BY_ID[result.zodaic_sign_id] : null
@@ -181,29 +139,8 @@ export default function DiscoverScreen() {
 
       {activeTab === 'classify' && (
       <ScrollView ref={scrollRef} style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.subtitle}>Enter any URL to reveal its ZodAIc sign.</Text>
-      <View style={styles.inputRow}>
-        <TextInput
-          style={styles.input}
-          placeholder="https://..."
-          placeholderTextColor="#555"
-          value={url}
-          onChangeText={setUrl}
-          autoCapitalize="none"
-          keyboardType="url"
-          returnKeyType="go"
-          onSubmitEditing={() => handleClassify()}
-        />
-        <TouchableOpacity style={styles.button} onPress={() => handleClassify()} disabled={loading}>
-          <Text style={styles.buttonText}>↗</Text>
-        </TouchableOpacity>
-      </View>
-
-      {loading && (
-        <View style={styles.loadingCard}>
-          <ActivityIndicator color="#9b59b6" size="large" />
-          <Text style={styles.loadingText}>Reading the digital stars...</Text>
-        </View>
+      {!result && !filteredSign && (
+        <Text style={styles.subtitle}>Tap a shared post or a sign match elsewhere in the app to see it here.</Text>
       )}
 
       {result && sign && (
@@ -274,7 +211,7 @@ export default function DiscoverScreen() {
             <Text style={styles.filteredEmpty}>No high-confidence sites found for this sign yet. Classify more URLs!</Text>
           ) : (
             filteredUrls.map((item) => (
-              <TouchableOpacity key={item.id} style={styles.filteredItem} onPress={() => { setUrl(item.url); setResult(item); setShared(false); scrollRef.current?.scrollTo({ y: 0, animated: true }) }}>
+              <TouchableOpacity key={item.id} style={styles.filteredItem} onPress={() => { setResult(item); setShared(false); scrollRef.current?.scrollTo({ y: 0, animated: true }) }}>
                 <View style={styles.filteredItemText}>
                   <Text style={styles.filteredItemTitle} numberOfLines={1}>{item.title}</Text>
                   <Text style={styles.filteredItemUrl} numberOfLines={1}>{item.url}</Text>
@@ -288,26 +225,6 @@ export default function DiscoverScreen() {
         </View>
       )}
 
-      {history.length > 0 && (
-        <View style={styles.historySection}>
-          <Text style={styles.historyTitle}>Recent</Text>
-          {history.map((item) => {
-            const s = SIGN_BY_ID[item.zodaic_sign_id]
-            return (
-              <TouchableOpacity key={item.id} style={styles.historyItem} onPress={() => handleHistoryTap(item)}>
-                <Text style={styles.historySymbol}>{s?.symbol}</Text>
-                <View style={styles.historyText}>
-                  <Text style={styles.historyName} numberOfLines={1}>{item.title}</Text>
-                  <Text style={styles.historyUrl} numberOfLines={1}>{item.url}</Text>
-                </View>
-                <TouchableOpacity onPress={(e) => { e.stopPropagation(); if (s) setSelectedSignId(s.id) }}>
-                  <Text style={[styles.historySign, { color: s?.color }]}>{s?.name} ›</Text>
-                </TouchableOpacity>
-              </TouchableOpacity>
-            )
-          })}
-        </View>
-      )}
       </ScrollView>
       )}
 
@@ -393,28 +310,7 @@ const styles = StyleSheet.create({
   segmentActive: { backgroundColor: '#9b59b6' },
   segmentText: { color: '#555', fontSize: 14, fontWeight: '700' },
   segmentTextActive: { color: '#fff' },
-  subtitle: { color: '#888', fontSize: 15, marginBottom: 24 },
-  inputRow: { flexDirection: 'row', gap: 10, marginBottom: 24 },
-  input: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
-    color: '#fff',
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 15,
-    borderWidth: 1,
-    borderColor: '#2a2a3e',
-  },
-  button: {
-    backgroundColor: '#9b59b6',
-    borderRadius: 12,
-    width: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  buttonText: { color: '#fff', fontSize: 22, fontWeight: '700' },
-  loadingCard: { alignItems: 'center', padding: 40, gap: 16 },
-  loadingText: { color: '#9b59b6', fontSize: 15 },
+  subtitle: { color: '#888', fontSize: 15, marginBottom: 24, fontStyle: 'italic' },
   resultCard: {
     backgroundColor: '#1a1a2e',
     borderRadius: 20,
@@ -452,22 +348,6 @@ const styles = StyleSheet.create({
   filteredItemTitle: { color: '#ddd', fontSize: 14, fontWeight: '600' },
   filteredItemUrl: { color: '#555', fontSize: 11, marginTop: 2 },
   filteredConfidence: { fontSize: 13, fontWeight: '800', marginLeft: 8 },
-  historySection: { marginTop: 8 },
-  historyTitle: { color: '#9b59b6', fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 },
-  historyItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1a1a2e',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-    gap: 10,
-  },
-  historySymbol: { fontSize: 22 },
-  historyText: { flex: 1 },
-  historyName: { color: '#ddd', fontSize: 14, fontWeight: '600' },
-  historyUrl: { color: '#555', fontSize: 11, marginTop: 2 },
-  historySign: { fontSize: 11, fontWeight: '700' },
   peopleEmpty: { color: '#555', fontSize: 14, fontStyle: 'italic', textAlign: 'center', paddingVertical: 32 },
   searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a2e', borderRadius: 12, borderWidth: 1, borderColor: '#2a2a3e', marginBottom: 16 },
   searchInput: { flex: 1, color: '#fff', fontSize: 15, padding: 14 },
