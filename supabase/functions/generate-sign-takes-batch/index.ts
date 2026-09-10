@@ -22,30 +22,16 @@ Deno.serve(async (req) => {
     )
     const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY')!
 
-    // Candidates: classified content_items with no sign_takes row yet, OLDEST first.
-    // Oldest-first (not newest-first) matters once ingestion outpaces
+    // Candidates: classified content_items with no sign_takes row yet, OLDEST first,
+    // via the get_uncovered_content_items() SQL function (plain NOT EXISTS — see its
+    // migration for why this isn't a PostgREST embedded-resource filter or a
+    // client-built exclusion list; both were tried and both were silently wrong at
+    // this table's size). Oldest-first matters once ingestion outpaces
     // BATCH_GENERATION_LIMIT in a given run: newest-first would let a steady stream of
     // fresh articles permanently starve out an older backlog, since the freshest N
     // always win the slots. Oldest-first guarantees the backlog drains in order instead.
-    //
-    // This exclusion-list approach re-lists every existing sign_takes.content_item_id on
-    // every run — fine at current volume, worth switching to a left-join view if
-    // sign_takes grows large.
-    const { data: existingTakes } = await supabase.from('sign_takes').select('content_item_id')
-    const excludeIds = (existingTakes ?? []).map((r) => r.content_item_id)
-
-    let query = supabase
-      .from('content_items')
-      .select('id, title, description, characteristics, zodaic_sign_id')
-      .not('zodaic_sign_id', 'is', null)
-      .order('classified_at', { ascending: true })
-      .limit(BATCH_GENERATION_LIMIT)
-
-    if (excludeIds.length > 0) {
-      query = query.not('id', 'in', `(${excludeIds.join(',')})`)
-    }
-
-    const { data: candidates, error } = await query
+    const { data: candidates, error } = await supabase
+      .rpc('get_uncovered_content_items', { result_limit: BATCH_GENERATION_LIMIT })
     if (error) throw error
 
     let generated = 0
@@ -78,7 +64,8 @@ Deno.serve(async (req) => {
     })
   } catch (err) {
     console.error('generate-sign-takes-batch error:', err)
-    return new Response(JSON.stringify({ error: String(err) }), {
+    const message = err instanceof Error ? err.message : JSON.stringify(err)
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     })

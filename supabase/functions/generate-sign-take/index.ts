@@ -48,7 +48,8 @@ Deno.serve(async (req) => {
     })
   } catch (err) {
     console.error('generate-sign-take error:', err)
-    return new Response(JSON.stringify({ error: String(err) }), {
+    const message = err instanceof Error ? err.message : JSON.stringify(err)
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     })
