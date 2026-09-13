@@ -1,17 +1,17 @@
-import { useState, useCallback, useEffect } from 'react'
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Linking, Modal, TextInput, Alert } from 'react-native'
+import { useState, useCallback } from 'react'
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Linking, Modal, TextInput, Alert, KeyboardAvoidingView, Platform, Dimensions, Keyboard } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '@/lib/supabase'
 import { fetchSites, followSite, unfollowSite, classifyContent, createShare, Site } from '@/lib/api'
 import { ContentItem } from '@/types'
 import { SIGN_BY_ID, ZODAIC_SIGNS } from '@/constants/signs'
 import SignDetailModal from '@/components/SignDetailModal'
 
-const HISTORY_KEY = 'sites_classify_history'
-const MAX_HISTORY = 20
+const SCREEN_HEIGHT = Dimensions.get('window').height
 
 export default function SitesScreen() {
+  const insets = useSafeAreaInsets()
   const [userId, setUserId] = useState<string | null>(null)
   const [sites, setSites] = useState<Site[]>([])
   const [loading, setLoading] = useState(true)
@@ -24,14 +24,7 @@ export default function SitesScreen() {
   const [classifyResult, setClassifyResult] = useState<ContentItem | null>(null)
   const [sharing, setSharing] = useState(false)
   const [shared, setShared] = useState(false)
-  const [classifyHistory, setClassifyHistory] = useState<ContentItem[]>([])
   const router = useRouter()
-
-  useEffect(() => {
-    AsyncStorage.getItem(HISTORY_KEY).then((raw) => {
-      if (raw) setClassifyHistory(JSON.parse(raw))
-    })
-  }, [])
 
   useFocusEffect(useCallback(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -62,23 +55,16 @@ export default function SitesScreen() {
     })
   }
 
-  async function addToClassifyHistory(item: ContentItem) {
-    const filtered = classifyHistory.filter((h) => h.url !== item.url)
-    const updated = [item, ...filtered].slice(0, MAX_HISTORY)
-    setClassifyHistory(updated)
-    await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(updated))
-  }
-
   async function handleClassify() {
     const target = classifyUrl.trim()
     if (!target) return
+    Keyboard.dismiss()
     setClassifyLoading(true)
     setClassifyResult(null)
     setShared(false)
     try {
       const item = await classifyContent(target)
       setClassifyResult(item)
-      await addToClassifyHistory(item)
     } catch (e) {
       Alert.alert('Error', 'Could not classify this URL. Please try another.')
     } finally {
@@ -117,10 +103,11 @@ export default function SitesScreen() {
     })
   }
 
-  function handleHistoryTap(item: ContentItem) {
-    setClassifyUrl(item.url)
-    setClassifyResult(item)
+  function handleOpenClassify() {
+    setClassifyUrl('')
+    setClassifyResult(null)
     setShared(false)
+    setClassifyModalVisible(true)
   }
 
   const classifySign = classifyResult ? SIGN_BY_ID[classifyResult.zodaic_sign_id] : null
@@ -131,7 +118,7 @@ export default function SitesScreen() {
     <>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Sites</Text>
-        <TouchableOpacity style={styles.addButton} onPress={() => setClassifyModalVisible(true)}>
+        <TouchableOpacity style={styles.addButton} onPress={handleOpenClassify}>
           <Text style={styles.addButtonText}>+</Text>
         </TouchableOpacity>
       </View>
@@ -227,9 +214,13 @@ export default function SitesScreen() {
       </View>
 
       <Modal visible={classifyModalVisible} transparent animationType="slide" onRequestClose={() => setClassifyModalVisible(false)}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setClassifyModalVisible(false)}>
           <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-            <View style={styles.modalSheet}>
+            <View style={[styles.modalSheet, { maxHeight: SCREEN_HEIGHT - insets.top - 40 }]}>
               <View style={styles.modalHeaderRow}>
                 <Text style={styles.modalTitle}>Classify a Site</Text>
                 <TouchableOpacity onPress={() => setClassifyModalVisible(false)}>
@@ -237,7 +228,7 @@ export default function SitesScreen() {
                 </TouchableOpacity>
               </View>
 
-              <ScrollView contentContainerStyle={styles.modalScrollContent}>
+              <ScrollView contentContainerStyle={styles.modalScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                 <Text style={styles.subtitle}>Enter any URL to reveal its ZodAIc sign.</Text>
                 <View style={styles.inputRow}>
                   <TextInput
@@ -313,31 +304,11 @@ export default function SitesScreen() {
                     </TouchableOpacity>
                   </View>
                 )}
-
-                {classifyHistory.length > 0 && (
-                  <View style={styles.historySection}>
-                    <Text style={styles.historyTitle}>Recent</Text>
-                    {classifyHistory.map((item) => {
-                      const s = SIGN_BY_ID[item.zodaic_sign_id]
-                      return (
-                        <TouchableOpacity key={item.id} style={styles.historyItem} onPress={() => handleHistoryTap(item)}>
-                          <Text style={styles.historySymbol}>{s?.symbol}</Text>
-                          <View style={styles.historyText}>
-                            <Text style={styles.historyName} numberOfLines={1}>{item.title}</Text>
-                            <Text style={styles.historyUrl} numberOfLines={1}>{item.url}</Text>
-                          </View>
-                          <TouchableOpacity onPress={(e) => { e.stopPropagation(); if (s) setSelectedSignId(s.id) }}>
-                            <Text style={[styles.historySign, { color: s?.color }]}>{s?.name} ›</Text>
-                          </TouchableOpacity>
-                        </TouchableOpacity>
-                      )
-                    })}
-                  </View>
-                )}
               </ScrollView>
             </View>
           </TouchableOpacity>
         </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       <SignDetailModal signId={selectedSignId} onClose={() => setSelectedSignId(null)} />
@@ -396,7 +367,7 @@ const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: '#1a1a2e', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 24, paddingBottom: 40, maxHeight: '85%',
+    padding: 24, paddingBottom: 40, overflow: 'hidden',
   },
   modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
@@ -450,20 +421,4 @@ const styles = StyleSheet.create({
   shareButton: { backgroundColor: '#9b59b6', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 8 },
   shareButtonDone: { backgroundColor: '#2a1a3e' },
   shareButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  historySection: { marginTop: 8 },
-  historyTitle: { color: '#9b59b6', fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 },
-  historyItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0d0d1a',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-    gap: 10,
-  },
-  historySymbol: { fontSize: 22 },
-  historyText: { flex: 1 },
-  historyName: { color: '#ddd', fontSize: 14, fontWeight: '600' },
-  historyUrl: { color: '#555', fontSize: 11, marginTop: 2 },
-  historySign: { fontSize: 11, fontWeight: '700' },
 })
