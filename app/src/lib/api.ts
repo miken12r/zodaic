@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { ContentItem, Horoscope, UserSignAffinity, Share } from '@/types'
+import { SignTake } from './signTakes'
 
 // Extract clean article content via Readability (Reader Mode)
 export async function extractArticle(url: string): Promise<{
@@ -160,7 +161,11 @@ function elementalScore(userSignId: number, itemSignId: number): number {
 
 export type FeedItem =
   | { type: 'news'; item: ContentItem; score: number }
-  | { type: 'share'; share: Share & { content_item?: ContentItem }; score: number }
+  | {
+      type: 'share'
+      share: Share & { content_item?: ContentItem; sign_take?: Pick<SignTake, 'headline' | 'blurb' | 'persona_version'> }
+      score: number
+    }
 
 const FEED_MIN_ITEMS = 10
 const FEED_WINDOWS_MS = [
@@ -203,7 +208,7 @@ export async function fetchHomeFeed(
   ])
 
   const followingIds = (followRows ?? []).map((f) => f.following_id)
-  let shareItems: (Share & { content_item?: ContentItem })[] = []
+  let shareItems: (Share & { content_item?: ContentItem; sign_take?: Pick<SignTake, 'headline' | 'blurb' | 'persona_version'> })[] = []
 
   if (followingIds.length > 0) {
     const { data: shares } = await supabase
@@ -215,7 +220,26 @@ export async function fetchHomeFeed(
       .limit(20)
 
     if (shares && shares.length > 0) {
-      const contentIds = shares.map((s) => s.content_id)
+      // 'sign_take' shares store a sign_takes.id in content_id, not a content_items.id
+      // like every other content_type — resolve those separately, then join content_items
+      // via the take's own content_item_id so downstream sign-filtering/scoring (which
+      // reads share.content_item.zodaic_sign_id) keeps working unchanged either way.
+      const signTakeShares = shares.filter((s) => s.content_type === 'sign_take')
+      const otherShares = shares.filter((s) => s.content_type !== 'sign_take')
+
+      const signTakeMap: Record<string, SignTake> = {}
+      if (signTakeShares.length > 0) {
+        const { data: signTakes } = await supabase
+          .from('sign_takes')
+          .select('id, headline, blurb, persona_version, zodaic_sign_id, content_item_id')
+          .in('id', signTakeShares.map((s) => s.content_id))
+        for (const t of signTakes ?? []) signTakeMap[t.id] = t as SignTake
+      }
+
+      const contentIds = [
+        ...otherShares.map((s) => s.content_id),
+        ...Object.values(signTakeMap).map((t) => t.content_item_id),
+      ]
       const { data: contentItems } = await supabase
         .from('content_items')
         .select('*')
@@ -229,11 +253,15 @@ export async function fetchHomeFeed(
 
       const contentMap = Object.fromEntries((contentItems ?? []).map((c) => [c.id, c]))
       const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p]))
-      shareItems = shares.map((s) => ({
-        ...s,
-        content_item: contentMap[s.content_id],
-        profile: profileMap[s.user_id] ?? null,
-      }))
+      shareItems = shares.map((s) => {
+        const take = signTakeMap[s.content_id]
+        return {
+          ...s,
+          content_item: take ? contentMap[take.content_item_id] : contentMap[s.content_id],
+          sign_take: take ? { headline: take.headline, blurb: take.blurb, persona_version: take.persona_version } : undefined,
+          profile: profileMap[s.user_id] ?? null,
+        }
+      })
     }
   }
 

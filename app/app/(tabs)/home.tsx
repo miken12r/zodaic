@@ -7,8 +7,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '@/lib/supabase'
 import { fetchHoroscope, generateHoroscope, fetchHomeFeed, fetchTrendingFeed, FeedItem, PortAilsResult } from '@/lib/api'
 import { SIGN_BY_ID, ZODAIC_SIGNS } from '@/constants/signs'
+import { PERSONA_BY_SIGN_ID } from '@/constants/personas'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { loadFeedSettings, isPaywalled, FeedSettingsData, DEFAULT_FEED_SETTINGS } from '@/components/FeedSettings'
+import { ContentItem } from '@/types'
 
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000
 const FEED_CACHE_TTL_MS = 5 * 60 * 1000
@@ -186,6 +188,20 @@ export default function HomeScreen() {
     router.push({ pathname: '/(tabs)/discover', params: { contentId } })
   }
 
+  function handleTakeSharePress(contentItem: ContentItem, signId: number) {
+    router.push({
+      pathname: '/article',
+      params: {
+        url: contentItem.url,
+        contentId: contentItem.id,
+        signId: String(signId),
+        title: contentItem.title ?? '',
+        confidence: String(contentItem.classification_confidence ?? 0),
+        characteristics: JSON.stringify(contentItem.characteristics ?? []),
+      },
+    })
+  }
+
   async function handleDismiss(id: string, reason: 'read' | 'not_interested', signId: number) {
     swipeableRefs.current.get(id)?.close()
     setDismissedIds((prev) => new Set([...prev, id]))
@@ -306,10 +322,16 @@ export default function HomeScreen() {
       const contentItem = share.content_item
       const sign = contentItem ? SIGN_BY_ID[contentItem.zodaic_sign_id] : null
       const profile = (share as any).profile
+      const isTake = share.content_type === 'sign_take' && share.sign_take
+      const persona = sign ? PERSONA_BY_SIGN_ID[sign.id] : undefined
       return (
         <TouchableOpacity
           style={styles.shareCard}
-          onPress={() => contentItem && handleSharePress(contentItem.id)}
+          onPress={() => {
+            if (!contentItem) return
+            if (isTake) handleTakeSharePress(contentItem, contentItem.zodaic_sign_id)
+            else handleSharePress(contentItem.id)
+          }}
           activeOpacity={contentItem ? 0.8 : 1}
         >
           <View style={styles.shareHeader}>
@@ -319,12 +341,23 @@ export default function HomeScreen() {
             <Text style={styles.shareLabel}>shared</Text>
             {sign && (
               <TouchableOpacity onPress={() => setSelectedSignId(sign.id)}>
-                <Text style={[styles.shareSign, { color: sign.color }]}>{sign.symbol} {sign.name} ›</Text>
+                <Text style={[styles.shareSign, { color: sign.color }]}>
+                  {isTake ? (persona?.avatar ?? sign.symbol) : sign.symbol} {isTake ? (persona?.displayName ?? sign.name) : sign.name} ›
+                </Text>
               </TouchableOpacity>
             )}
           </View>
-          {contentItem && <Text style={styles.shareTitle} numberOfLines={1}>{contentItem.title}</Text>}
-          {share.message && <Text style={styles.shareMessage} numberOfLines={2}>{share.message}</Text>}
+          {isTake && share.sign_take ? (
+            <>
+              <Text style={styles.shareTitle} numberOfLines={2}>{share.sign_take.headline}</Text>
+              <Text style={styles.shareMessage} numberOfLines={2}>{share.sign_take.blurb}</Text>
+            </>
+          ) : (
+            <>
+              {contentItem && <Text style={styles.shareTitle} numberOfLines={1}>{contentItem.title}</Text>}
+              {share.message && <Text style={styles.shareMessage} numberOfLines={2}>{share.message}</Text>}
+            </>
+          )}
         </TouchableOpacity>
       )
     }

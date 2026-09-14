@@ -88,7 +88,7 @@ export interface SignPersona {
 export interface Share {
   id: string
   user_id: string
-  content_type: 'horoscope' | 'content_affinity' | 'sign_reading'
+  content_type: 'horoscope' | 'content_affinity' | 'sign_reading' | 'sign_take'
   content_id: string
   message: string | null
   created_at: string
