@@ -118,7 +118,7 @@ export default function DiscoverScreen() {
     <SignDetailModal signId={selectedSignId} onClose={() => setSelectedSignId(null)} />
     <View style={styles.screen}>
       <View style={styles.fixedHeader}>
-        <Text style={styles.title}>Discover</Text>
+        <Text style={styles.title}>Networking</Text>
 
         {/* Segment control */}
         <View style={styles.segmentControl}>

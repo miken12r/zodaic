@@ -13,7 +13,7 @@ export default function TabLayout() {
     >
       <Tabs.Screen
         name="home"
-        options={{ title: 'Home', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🏠</Text> }}
+        options={{ title: 'News', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🏠</Text> }}
       />
       <Tabs.Screen
         name="takes"
@@ -25,11 +25,11 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="feed"
-        options={{ title: 'PortAils', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🌀</Text> }}
+        options={{ title: 'Webstrology', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🌀</Text> }}
       />
       <Tabs.Screen
         name="discover"
-        options={{ title: 'Discover', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🔍</Text> }}
+        options={{ title: 'Networking', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>👥</Text> }}
       />
       <Tabs.Screen
         name="profile"

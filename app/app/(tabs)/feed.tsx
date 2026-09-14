@@ -51,7 +51,7 @@ export default function PortAilsScreen() {
         .single()
 
       if (!profile?.primary_zodaic_sign_id) {
-        setError('Complete your profile to unlock PortAils.')
+        setError('Complete your profile to unlock Webstrology.')
         setLoading(false)
         return
       }
@@ -80,7 +80,7 @@ export default function PortAilsScreen() {
         await setCached(cacheKey, result)
         setPortails(result)
       } catch (e) {
-        setError('Could not generate your PortAils reading. Try again later.')
+        setError('Could not generate your Webstrology reading. Try again later.')
       }
 
       setLoading(false)
@@ -118,7 +118,7 @@ export default function PortAilsScreen() {
     <>
     <View style={styles.screen}>
       <View style={styles.fixedHeader}>
-        <Text style={styles.title}>PortAils</Text>
+        <Text style={styles.title}>Webstrology</Text>
         {primarySign && (
           <Text style={styles.subtitle}>
             <Text style={{ color: primarySign.color }}>{primarySign.symbol} {primarySign.name}</Text>
