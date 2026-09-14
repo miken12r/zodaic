@@ -210,6 +210,7 @@ export default function HomeScreen() {
 
   const renderFixedHeader = () => (
     <>
+      <Text style={styles.title}>Sign Talk</Text>
       <TouchableOpacity style={styles.headerRow} onPress={() => router.push('/(tabs)/profile')}>
         <Text style={styles.headerLabel}>Your sign: </Text>
         {primarySign ? (
@@ -513,6 +514,7 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
   center: { flex: 1, backgroundColor: '#0d0d1a', justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { color: '#9b59b6', fontSize: 15 },
+  title: { fontSize: 28, fontWeight: '800', color: '#fff', marginBottom: 12 },
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' },
   headerLabel: { fontSize: 22, fontWeight: '800', color: '#fff' },
   headerSubtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16, marginTop: -6 },
