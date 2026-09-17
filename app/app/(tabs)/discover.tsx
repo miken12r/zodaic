@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, FlatList, Alert } from 'react-native'
 import SignDetailModal from '@/components/SignDetailModal'
 import UserProfileSheet from '@/components/UserProfileSheet'
-import { createShare, fetchTopUrlsForSign, fetchContentItem, fetchUsers, followUser, unfollowUser } from '@/lib/api'
+import ShareCard from '@/components/ShareCard'
+import { createShare, fetchTopUrlsForSign, fetchContentItem, fetchUsers, followUser, unfollowUser, fetchUserShares, getShareRoute, ResolvedShare } from '@/lib/api'
 import { ContentItem } from '@/types'
 import { SIGN_BY_ID } from '@/constants/signs'
 import { supabase } from '@/lib/supabase'
@@ -42,6 +43,8 @@ export default function DiscoverScreen() {
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'classify' | 'people'>('people')
   const [peopleSearch, setPeopleSearch] = useState('')
+  const [myShares, setMyShares] = useState<ResolvedShare[]>([])
+  const [mySharesLoading, setMySharesLoading] = useState(false)
   const scrollRef = useRef<ScrollView>(null)
 
   useFocusEffect(useCallback(() => {
@@ -49,6 +52,11 @@ export default function DiscoverScreen() {
       if (!user) return
       setCurrentUserId(user.id)
       fetchUsers(user.id).then(setPeople)
+      setMySharesLoading(true)
+      fetchUserShares(user.id).then((s) => {
+        setMyShares(s)
+        setMySharesLoading(false)
+      })
     })
     if (signId || contentId) setActiveTab('classify')
     if (contentId) {
@@ -132,7 +140,7 @@ export default function DiscoverScreen() {
             style={[styles.segment, activeTab === 'classify' && styles.segmentActive]}
             onPress={() => setActiveTab('classify')}
           >
-            <Text style={[styles.segmentText, activeTab === 'classify' && styles.segmentTextActive]}>Coming soon</Text>
+            <Text style={[styles.segmentText, activeTab === 'classify' && styles.segmentTextActive]}>My Feed</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -140,7 +148,27 @@ export default function DiscoverScreen() {
       {activeTab === 'classify' && (
       <ScrollView ref={scrollRef} style={styles.container} contentContainerStyle={styles.content}>
       {!result && !filteredSign && (
-        <Text style={styles.subtitle}>Tap a shared post or a sign match elsewhere in the app to see it here.</Text>
+        <View style={styles.mySharesSection}>
+          <Text style={styles.mySharesTitle}>My Feed</Text>
+          {mySharesLoading ? (
+            <ActivityIndicator color="#9b59b6" style={{ marginTop: 16 }} />
+          ) : myShares.length === 0 ? (
+            <Text style={styles.subtitle}>You haven't shared anything yet — share an article or a Hot Take to see it here.</Text>
+          ) : (
+            myShares.map((item) => (
+              <ShareCard
+                key={item.id}
+                share={item}
+                showAuthor={false}
+                onPress={() => {
+                  const route = getShareRoute(item)
+                  if (route) router.push(route as any)
+                }}
+                onPressSign={(signId) => setSelectedSignId(signId)}
+              />
+            ))
+          )}
+        </View>
       )}
 
       {result && sign && (
@@ -311,6 +339,8 @@ const styles = StyleSheet.create({
   segmentText: { color: '#555', fontSize: 14, fontWeight: '700' },
   segmentTextActive: { color: '#fff' },
   subtitle: { color: '#888', fontSize: 15, marginBottom: 24, fontStyle: 'italic' },
+  mySharesSection: { flex: 1 },
+  mySharesTitle: { color: '#888', fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
   resultCard: {
     backgroundColor: '#1a1a2e',
     borderRadius: 20,
