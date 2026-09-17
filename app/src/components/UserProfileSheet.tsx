@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
-import { fetchUserProfile, followUser, unfollowUser } from '@/lib/api'
+import { Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions } from 'react-native'
+import { useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { fetchUserProfile, followUser, unfollowUser, fetchUserShares, getShareRoute, ResolvedShare } from '@/lib/api'
 import { SIGN_BY_ID } from '@/constants/signs'
+import ShareCard from '@/components/ShareCard'
+
+const SCREEN_HEIGHT = Dimensions.get('window').height
 
 interface Props {
   userId: string | null
@@ -17,13 +22,22 @@ export default function UserProfileSheet({ userId, currentUserId, onClose }: Pro
   } | null>(null)
   const [loading, setLoading] = useState(false)
   const [toggling, setToggling] = useState(false)
+  const [shares, setShares] = useState<ResolvedShare[]>([])
+  const [sharesLoading, setSharesLoading] = useState(false)
+  const router = useRouter()
+  const insets = useSafeAreaInsets()
 
   useEffect(() => {
-    if (!userId) { setProfile(null); return }
+    if (!userId) { setProfile(null); setShares([]); return }
     setLoading(true)
+    setSharesLoading(true)
     fetchUserProfile(userId, currentUserId).then((p) => {
       setProfile(p)
       setLoading(false)
+    })
+    fetchUserShares(userId).then((s) => {
+      setShares(s)
+      setSharesLoading(false)
     })
   }, [userId, currentUserId])
 
@@ -49,7 +63,7 @@ export default function UserProfileSheet({ userId, currentUserId, onClose }: Pro
     <Modal visible={!!userId} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-          <View style={[styles.sheet, sign ? { borderTopColor: sign.color } : {}]}>
+          <View style={[styles.sheet, { maxHeight: SCREEN_HEIGHT - insets.top - 40 }, sign ? { borderTopColor: sign.color } : {}]}>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Text style={styles.closeText}>✕</Text>
             </TouchableOpacity>
@@ -96,6 +110,31 @@ export default function UserProfileSheet({ userId, currentUserId, onClose }: Pro
                     </Text>
                   </TouchableOpacity>
                 )}
+
+                <View style={styles.sharesSection}>
+                  <Text style={styles.sharesSectionTitle}>Shared</Text>
+                  {sharesLoading ? (
+                    <ActivityIndicator color="#9b59b6" style={{ marginVertical: 16 }} />
+                  ) : shares.length === 0 ? (
+                    <Text style={styles.sharesEmpty}>Hasn't shared anything yet.</Text>
+                  ) : (
+                    <ScrollView style={{ maxHeight: SCREEN_HEIGHT - insets.top - 420 }} showsVerticalScrollIndicator={false}>
+                      {shares.map((item) => (
+                        <ShareCard
+                          key={item.id}
+                          share={item}
+                          showAuthor={false}
+                          onPress={() => {
+                            const route = getShareRoute(item)
+                            if (!route) return
+                            onClose()
+                            router.push(route as any)
+                          }}
+                        />
+                      ))}
+                    </ScrollView>
+                  )}
+                </View>
               </>
             )}
           </View>
@@ -129,4 +168,7 @@ const styles = StyleSheet.create({
   followingButton: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#9b59b6' },
   followButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   followingButtonText: { color: '#9b59b6' },
+  sharesSection: { marginTop: 24 },
+  sharesSectionTitle: { color: '#888', fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  sharesEmpty: { color: '#555', fontSize: 13, paddingVertical: 8 },
 })

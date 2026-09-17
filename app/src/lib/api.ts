@@ -163,7 +163,7 @@ export type FeedItem =
   | { type: 'news'; item: ContentItem; score: number }
   | {
       type: 'share'
-      share: Share & { content_item?: ContentItem; sign_take?: Pick<SignTake, 'headline' | 'blurb' | 'persona_version'> }
+      share: ResolvedShare & { profile?: { id: string; username: string; display_name: string | null } | null }
       score: number
     }
 
@@ -196,6 +196,83 @@ async function fetchNewsWithFallback(): Promise<ContentItem[]> {
   return (data ?? []) as ContentItem[]
 }
 
+export type ResolvedShare = Share & { content_item?: ContentItem; sign_take?: Pick<SignTake, 'headline' | 'blurb' | 'persona_version'> }
+
+// Resolve a batch of `shares` rows into their content: 'sign_take' shares store a
+// sign_takes.id in content_id, not a content_items.id like every other content_type —
+// resolve those separately, then join content_items via the take's own content_item_id
+// so callers that filter/score on content_item.zodaic_sign_id keep working either way.
+async function attachShareContent(shares: Share[]): Promise<ResolvedShare[]> {
+  if (shares.length === 0) return []
+
+  const signTakeShares = shares.filter((s) => s.content_type === 'sign_take')
+  const otherShares = shares.filter((s) => s.content_type !== 'sign_take')
+
+  const signTakeMap: Record<string, SignTake> = {}
+  if (signTakeShares.length > 0) {
+    const { data: signTakes } = await supabase
+      .from('sign_takes')
+      .select('id, headline, blurb, persona_version, zodaic_sign_id, content_item_id')
+      .in('id', signTakeShares.map((s) => s.content_id))
+    for (const t of signTakes ?? []) signTakeMap[t.id] = t as SignTake
+  }
+
+  const contentIds = [
+    ...otherShares.map((s) => s.content_id),
+    ...Object.values(signTakeMap).map((t) => t.content_item_id),
+  ]
+  const { data: contentItems } = await supabase
+    .from('content_items')
+    .select('*')
+    .in('id', contentIds)
+
+  const contentMap = Object.fromEntries((contentItems ?? []).map((c) => [c.id, c]))
+  return shares.map((s) => {
+    const take = signTakeMap[s.content_id]
+    return {
+      ...s,
+      content_item: take ? contentMap[take.content_item_id] : contentMap[s.content_id],
+      sign_take: take ? { headline: take.headline, blurb: take.blurb, persona_version: take.persona_version } : undefined,
+    }
+  })
+}
+
+// A user's shared history for their profile sheet — no time-window filter, unlike
+// fetchHomeFeed's live feed, since this is meant to show everything they've shared.
+export async function fetchUserShares(userId: string, limit = 30): Promise<ResolvedShare[]> {
+  const { data: shares } = await supabase
+    .from('shares')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (!shares || shares.length === 0) return []
+  return attachShareContent(shares)
+}
+
+// Where tapping a share should navigate — a 'sign_take' share goes to the article with
+// its take already populated; everything else goes to Networking's classify segment.
+export function getShareRoute(share: ResolvedShare): { pathname: string; params: Record<string, string> } | null {
+  if (!share.content_item) return null
+  if (share.content_type === 'sign_take' && share.sign_take) {
+    return {
+      pathname: '/article',
+      params: {
+        url: share.content_item.url,
+        contentId: share.content_item.id,
+        signId: String(share.content_item.zodaic_sign_id),
+        title: share.content_item.title ?? '',
+        confidence: String(share.content_item.classification_confidence ?? 0),
+        characteristics: JSON.stringify(share.content_item.characteristics ?? []),
+        takeId: share.content_id,
+        takeHeadline: share.sign_take.headline,
+        takeBlurb: share.sign_take.blurb,
+      },
+    }
+  }
+  return { pathname: '/(tabs)/discover', params: { contentId: share.content_item.id } }
+}
+
 export async function fetchHomeFeed(
   userId: string,
   primarySignId: number,
@@ -208,7 +285,7 @@ export async function fetchHomeFeed(
   ])
 
   const followingIds = (followRows ?? []).map((f) => f.following_id)
-  let shareItems: (Share & { content_item?: ContentItem; sign_take?: Pick<SignTake, 'headline' | 'blurb' | 'persona_version'> })[] = []
+  let shareItems: (ResolvedShare & { profile?: { id: string; username: string; display_name: string | null } | null })[] = []
 
   if (followingIds.length > 0) {
     const { data: shares } = await supabase
@@ -220,30 +297,7 @@ export async function fetchHomeFeed(
       .limit(20)
 
     if (shares && shares.length > 0) {
-      // 'sign_take' shares store a sign_takes.id in content_id, not a content_items.id
-      // like every other content_type — resolve those separately, then join content_items
-      // via the take's own content_item_id so downstream sign-filtering/scoring (which
-      // reads share.content_item.zodaic_sign_id) keeps working unchanged either way.
-      const signTakeShares = shares.filter((s) => s.content_type === 'sign_take')
-      const otherShares = shares.filter((s) => s.content_type !== 'sign_take')
-
-      const signTakeMap: Record<string, SignTake> = {}
-      if (signTakeShares.length > 0) {
-        const { data: signTakes } = await supabase
-          .from('sign_takes')
-          .select('id, headline, blurb, persona_version, zodaic_sign_id, content_item_id')
-          .in('id', signTakeShares.map((s) => s.content_id))
-        for (const t of signTakes ?? []) signTakeMap[t.id] = t as SignTake
-      }
-
-      const contentIds = [
-        ...otherShares.map((s) => s.content_id),
-        ...Object.values(signTakeMap).map((t) => t.content_item_id),
-      ]
-      const { data: contentItems } = await supabase
-        .from('content_items')
-        .select('*')
-        .in('id', contentIds)
+      const resolved = await attachShareContent(shares)
 
       const profileIds = [...new Set(shares.map((s) => s.user_id))]
       const { data: profiles } = await supabase
@@ -251,17 +305,8 @@ export async function fetchHomeFeed(
         .select('id, username, display_name')
         .in('id', profileIds)
 
-      const contentMap = Object.fromEntries((contentItems ?? []).map((c) => [c.id, c]))
       const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p]))
-      shareItems = shares.map((s) => {
-        const take = signTakeMap[s.content_id]
-        return {
-          ...s,
-          content_item: take ? contentMap[take.content_item_id] : contentMap[s.content_id],
-          sign_take: take ? { headline: take.headline, blurb: take.blurb, persona_version: take.persona_version } : undefined,
-          profile: profileMap[s.user_id] ?? null,
-        }
-      })
+      shareItems = resolved.map((s) => ({ ...s, profile: profileMap[s.user_id] ?? null }))
     }
   }
 

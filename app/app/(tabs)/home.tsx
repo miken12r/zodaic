@@ -3,14 +3,13 @@ import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, To
 import { Swipeable } from 'react-native-gesture-handler'
 import SignDetailModal from '@/components/SignDetailModal'
 import UserProfileSheet from '@/components/UserProfileSheet'
+import ShareCard from '@/components/ShareCard'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '@/lib/supabase'
-import { fetchHoroscope, generateHoroscope, fetchHomeFeed, fetchTrendingFeed, FeedItem, PortAilsResult } from '@/lib/api'
+import { fetchHoroscope, generateHoroscope, fetchHomeFeed, fetchTrendingFeed, getShareRoute, FeedItem, PortAilsResult } from '@/lib/api'
 import { SIGN_BY_ID, ZODAIC_SIGNS } from '@/constants/signs'
-import { PERSONA_BY_SIGN_ID } from '@/constants/personas'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { loadFeedSettings, isPaywalled, FeedSettingsData, DEFAULT_FEED_SETTINGS } from '@/components/FeedSettings'
-import { ContentItem } from '@/types'
 
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000
 const FEED_CACHE_TTL_MS = 5 * 60 * 1000
@@ -184,25 +183,6 @@ export default function HomeScreen() {
     })
   }
 
-  function handleSharePress(contentId: string) {
-    router.push({ pathname: '/(tabs)/discover', params: { contentId } })
-  }
-
-  function handleTakeSharePress(contentItem: ContentItem, signId: number, take?: { id: string; headline: string; blurb: string }) {
-    router.push({
-      pathname: '/article',
-      params: {
-        url: contentItem.url,
-        contentId: contentItem.id,
-        signId: String(signId),
-        title: contentItem.title ?? '',
-        confidence: String(contentItem.classification_confidence ?? 0),
-        characteristics: JSON.stringify(contentItem.characteristics ?? []),
-        ...(take ? { takeId: take.id, takeHeadline: take.headline, takeBlurb: take.blurb } : {}),
-      },
-    })
-  }
-
   async function handleDismiss(id: string, reason: 'read' | 'not_interested', signId: number) {
     swipeableRefs.current.get(id)?.close()
     setDismissedIds((prev) => new Set([...prev, id]))
@@ -320,47 +300,16 @@ export default function HomeScreen() {
     }
 
     if (item.type === 'share') {
-      const { share } = item
-      const contentItem = share.content_item
-      const sign = contentItem ? SIGN_BY_ID[contentItem.zodaic_sign_id] : null
-      const profile = (share as any).profile
-      const isTake = share.content_type === 'sign_take' && share.sign_take
-      const persona = sign ? PERSONA_BY_SIGN_ID[sign.id] : undefined
       return (
-        <TouchableOpacity
-          style={styles.shareCard}
+        <ShareCard
+          share={item.share}
           onPress={() => {
-            if (!contentItem) return
-            if (isTake) handleTakeSharePress(contentItem, contentItem.zodaic_sign_id, { id: share.content_id, ...share.sign_take! })
-            else handleSharePress(contentItem.id)
+            const route = getShareRoute(item.share)
+            if (route) router.push(route as any)
           }}
-          activeOpacity={contentItem ? 0.8 : 1}
-        >
-          <View style={styles.shareHeader}>
-            <TouchableOpacity onPress={() => share.user_id && setSelectedUserId(share.user_id)}>
-              <Text style={styles.shareUsername}>{profile?.display_name ?? profile?.username ?? 'Someone'}</Text>
-            </TouchableOpacity>
-            <Text style={styles.shareLabel}>shared</Text>
-            {sign && (
-              <TouchableOpacity onPress={() => setSelectedSignId(sign.id)}>
-                <Text style={[styles.shareSign, { color: sign.color }]}>
-                  {isTake ? (persona?.avatar ?? sign.symbol) : sign.symbol} {isTake ? (persona?.displayName ?? sign.name) : sign.name} ›
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          {isTake && share.sign_take ? (
-            <>
-              <Text style={styles.shareTitle} numberOfLines={2}>{share.sign_take.headline}</Text>
-              <Text style={styles.shareMessage} numberOfLines={2}>{share.sign_take.blurb}</Text>
-            </>
-          ) : (
-            <>
-              {contentItem && <Text style={styles.shareTitle} numberOfLines={1}>{contentItem.title}</Text>}
-              {share.message && <Text style={styles.shareMessage} numberOfLines={2}>{share.message}</Text>}
-            </>
-          )}
-        </TouchableOpacity>
+          onPressSign={(signId) => setSelectedSignId(signId)}
+          onPressUser={(userId) => setSelectedUserId(userId)}
+        />
       )
     }
 
@@ -562,16 +511,6 @@ const styles = StyleSheet.create({
   newsSignText: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   newsTitle: { color: '#fff', fontSize: 14, fontWeight: '700', lineHeight: 20, marginBottom: 4 },
   newsDescription: { color: '#888', fontSize: 12, lineHeight: 17 },
-  shareCard: {
-    backgroundColor: '#1a1a2e', borderRadius: 16, padding: 14,
-    marginBottom: 10, borderLeftWidth: 3, borderLeftColor: '#9b59b6',
-  },
-  shareHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' },
-  shareUsername: { color: '#9b59b6', fontWeight: '700', fontSize: 13 },
-  shareLabel: { color: '#555', fontSize: 13 },
-  shareSign: { fontSize: 13, fontWeight: '700' },
-  shareTitle: { color: '#ddd', fontSize: 14, fontWeight: '600', marginBottom: 4 },
-  shareMessage: { color: '#888', fontSize: 13, lineHeight: 18 },
   empty: { padding: 40, alignItems: 'center' },
   emptyText: { color: '#555', fontSize: 14, textAlign: 'center', lineHeight: 22 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
