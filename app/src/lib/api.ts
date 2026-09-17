@@ -250,27 +250,26 @@ export async function fetchUserShares(userId: string, limit = 30): Promise<Resol
   return attachShareContent(shares)
 }
 
-// Where tapping a share should navigate — a 'sign_take' share goes to the article with
-// its take already populated; everything else goes to Networking's classify segment.
+// Where tapping a share should navigate — always straight to the article (its content_item
+// is already fully resolved by attachShareContent, so there's no need to detour through
+// Networking's classify segment). A 'sign_take' share also carries its take along so it's
+// shown immediately instead of re-fetched.
 export function getShareRoute(share: ResolvedShare): { pathname: string; params: Record<string, string> } | null {
   if (!share.content_item) return null
-  if (share.content_type === 'sign_take' && share.sign_take) {
-    return {
-      pathname: '/article',
-      params: {
-        url: share.content_item.url,
-        contentId: share.content_item.id,
-        signId: String(share.content_item.zodaic_sign_id),
-        title: share.content_item.title ?? '',
-        confidence: String(share.content_item.classification_confidence ?? 0),
-        characteristics: JSON.stringify(share.content_item.characteristics ?? []),
-        takeId: share.content_id,
-        takeHeadline: share.sign_take.headline,
-        takeBlurb: share.sign_take.blurb,
-      },
-    }
+  return {
+    pathname: '/article',
+    params: {
+      url: share.content_item.url,
+      contentId: share.content_item.id,
+      signId: String(share.content_item.zodaic_sign_id),
+      title: share.content_item.title ?? '',
+      confidence: String(share.content_item.classification_confidence ?? 0),
+      characteristics: JSON.stringify(share.content_item.characteristics ?? []),
+      ...(share.content_type === 'sign_take' && share.sign_take
+        ? { takeId: share.content_id, takeHeadline: share.sign_take.headline, takeBlurb: share.sign_take.blurb }
+        : {}),
+    },
   }
-  return { pathname: '/(tabs)/discover', params: { contentId: share.content_item.id } }
 }
 
 export async function fetchHomeFeed(
