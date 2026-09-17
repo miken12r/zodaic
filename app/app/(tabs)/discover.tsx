@@ -40,7 +40,7 @@ export default function DiscoverScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'classify' | 'people'>('classify')
+  const [activeTab, setActiveTab] = useState<'classify' | 'people'>('people')
   const [peopleSearch, setPeopleSearch] = useState('')
   const scrollRef = useRef<ScrollView>(null)
 
@@ -123,16 +123,16 @@ export default function DiscoverScreen() {
         {/* Segment control */}
         <View style={styles.segmentControl}>
           <TouchableOpacity
-            style={[styles.segment, activeTab === 'classify' && styles.segmentActive]}
-            onPress={() => setActiveTab('classify')}
-          >
-            <Text style={[styles.segmentText, activeTab === 'classify' && styles.segmentTextActive]}>Classify</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
             style={[styles.segment, activeTab === 'people' && styles.segmentActive]}
             onPress={() => setActiveTab('people')}
           >
             <Text style={[styles.segmentText, activeTab === 'people' && styles.segmentTextActive]}>People</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.segment, activeTab === 'classify' && styles.segmentActive]}
+            onPress={() => setActiveTab('classify')}
+          >
+            <Text style={[styles.segmentText, activeTab === 'classify' && styles.segmentTextActive]}>Coming soon</Text>
           </TouchableOpacity>
         </View>
       </View>
