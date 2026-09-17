@@ -188,7 +188,7 @@ export default function HomeScreen() {
     router.push({ pathname: '/(tabs)/discover', params: { contentId } })
   }
 
-  function handleTakeSharePress(contentItem: ContentItem, signId: number) {
+  function handleTakeSharePress(contentItem: ContentItem, signId: number, take?: { id: string; headline: string; blurb: string }) {
     router.push({
       pathname: '/article',
       params: {
@@ -198,6 +198,7 @@ export default function HomeScreen() {
         title: contentItem.title ?? '',
         confidence: String(contentItem.classification_confidence ?? 0),
         characteristics: JSON.stringify(contentItem.characteristics ?? []),
+        ...(take ? { takeId: take.id, takeHeadline: take.headline, takeBlurb: take.blurb } : {}),
       },
     })
   }
@@ -330,7 +331,7 @@ export default function HomeScreen() {
           style={styles.shareCard}
           onPress={() => {
             if (!contentItem) return
-            if (isTake) handleTakeSharePress(contentItem, contentItem.zodaic_sign_id)
+            if (isTake) handleTakeSharePress(contentItem, contentItem.zodaic_sign_id, { id: share.content_id, ...share.sign_take! })
             else handleSharePress(contentItem.id)
           }}
           activeOpacity={contentItem ? 0.8 : 1}

@@ -166,3 +166,7 @@ export const SIGN_BY_SLUG = Object.fromEntries(
 export const SIGN_BY_ID = Object.fromEntries(
   ZODAIC_SIGNS.map((s) => [s.id, s])
 ) as Record<number, ZodaicSign>
+
+export function dropThe(name: string): string {
+  return name.replace(/^The /, '')
+}

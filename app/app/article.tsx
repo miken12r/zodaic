@@ -4,12 +4,14 @@ import { ScrollView as GHScrollView } from 'react-native-gesture-handler'
 import { WebView } from 'react-native-webview'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { SIGN_BY_ID } from '@/constants/signs'
+import { SIGN_BY_ID, dropThe } from '@/constants/signs'
+import { PERSONA_BY_SIGN_ID } from '@/constants/personas'
 import { createShare, generateLens, extractArticle } from '@/lib/api'
 import { getOrGenerateSignTake } from '@/lib/signTakes'
 import { supabase } from '@/lib/supabase'
 import SignDetailModal from '@/components/SignDetailModal'
 import { loadFeedSettings, saveFeedSettings } from '@/components/FeedSettings'
+import { useSignTakeSharing } from '@/hooks/useSignTakeSharing'
 
 type ReaderContent = {
   title: string
@@ -84,13 +86,16 @@ function parseReaderContent(article: { title: string; byline: string; site_name:
 }
 
 export default function ArticleScreen() {
-  const { url, contentId, signId, title, confidence, characteristics } = useLocalSearchParams<{
+  const { url, contentId, signId, title, confidence, characteristics, takeId, takeHeadline, takeBlurb } = useLocalSearchParams<{
     url: string
     contentId: string
     signId: string
     title: string
     confidence: string
     characteristics: string
+    takeId: string
+    takeHeadline: string
+    takeBlurb: string
   }>()
   const router = useRouter()
   const insets = useSafeAreaInsets()
@@ -105,6 +110,11 @@ export default function ArticleScreen() {
   const [readerMode, setReaderMode] = useState(false)
   const [readerContent, setReaderContent] = useState<ReaderContent | null>(null)
   const [readerLoading, setReaderLoading] = useState(false)
+  const [take, setTake] = useState<{ id: string; headline: string; blurb: string } | null>(
+    takeId && takeHeadline && takeBlurb ? { id: takeId as string, headline: takeHeadline as string, blurb: takeBlurb as string } : null
+  )
+  const [takeSheetVisible, setTakeSheetVisible] = useState(false)
+  const { presentShareOptions, captureView } = useSignTakeSharing()
 
   // Load sticky reader mode preference on mount
   useEffect(() => {
@@ -112,6 +122,7 @@ export default function ArticleScreen() {
   }, [])
 
   const sign = signId ? SIGN_BY_ID[parseInt(signId)] : null
+  const persona = signId ? PERSONA_BY_SIGN_ID[parseInt(signId)] : undefined
   const confidencePct = confidence ? Math.round(parseFloat(confidence) * 100) : null
 
   // Start fetching the lens in the background as soon as the screen mounts
@@ -140,12 +151,13 @@ export default function ArticleScreen() {
     return () => { cancelled = true }
   }, [contentId])
 
-  // Passively backfill a sign take for this article if one doesn't exist yet — catches
-  // articles reached via any tab that isn't the Takes tab itself (Takes never links to
-  // an article without a take, by construction, since it queries sign_takes directly).
+  // Fetch/generate a sign take for this article if it wasn't already handed to us via
+  // nav params (Takes and take-shares already know it; every other entry point doesn't).
   useEffect(() => {
-    if (!contentId || !signId) return
-    getOrGenerateSignTake({ content_id: contentId as string, zodaic_sign_id: parseInt(signId as string) }).catch(() => {})
+    if (!contentId || !signId || (takeId && takeHeadline && takeBlurb)) return
+    getOrGenerateSignTake({ content_id: contentId as string, zodaic_sign_id: parseInt(signId as string) })
+      .then((r) => setTake({ id: r.id, headline: r.headline, blurb: r.blurb }))
+      .catch(() => {})
   }, [contentId])
 
   async function handleLensOpen() {
@@ -254,16 +266,24 @@ export default function ArticleScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Article title + lens button */}
+      {/* Article title + lens/take buttons */}
       {title ? (
         <View style={styles.titleBar}>
           <Text style={styles.titleText} numberOfLines={2}>{title}</Text>
-          {sign && contentId && (
-            <TouchableOpacity style={[styles.lensButton, { borderColor: sign.color }]} onPress={handleLensOpen}>
-              <Text style={styles.lensButtonSymbol}>{sign.symbol}</Text>
-              <Text style={[styles.lensButtonText, { color: sign.color }]}>Read through {sign.name} eyes</Text>
-            </TouchableOpacity>
-          )}
+          <View style={styles.titleBarButtons}>
+            {sign && contentId && (
+              <TouchableOpacity style={[styles.lensButton, { borderColor: sign.color }]} onPress={handleLensOpen}>
+                <Text style={styles.lensButtonSymbol}>{sign.symbol}</Text>
+                <Text style={[styles.lensButtonText, { color: sign.color }]}>{dropThe(sign.name)} View</Text>
+              </TouchableOpacity>
+            )}
+            {take && sign && (
+              <TouchableOpacity style={[styles.lensButton, { borderColor: sign.color }]} onPress={() => setTakeSheetVisible(true)}>
+                <Text style={styles.lensButtonSymbol}>{persona?.avatar ?? sign.symbol}</Text>
+                <Text style={[styles.lensButtonText, { color: sign.color }]}>{persona?.displayName ?? dropThe(sign.name)}'s Hot Take</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       ) : null}
 
@@ -322,7 +342,7 @@ export default function ArticleScreen() {
               <View style={styles.lensSheetHeader}>
                 <Text style={styles.lensSheetSymbol}>{sign?.symbol}</Text>
                 <Text style={[styles.lensSheetTitle, { color: sign?.color ?? '#9b59b6' }]}>
-                  Reading through {sign?.name} eyes
+                  {sign ? `${dropThe(sign.name)} View` : ''}
                 </Text>
               </View>
               {lensLoading || !lensText ? (
@@ -357,6 +377,43 @@ export default function ArticleScreen() {
         </TouchableOpacity>
         </View>
       )}
+
+      {takeSheetVisible && take && (
+        <View style={StyleSheet.absoluteFillObject}>
+        <TouchableOpacity style={styles.lensBackdrop} activeOpacity={1} onPress={() => setTakeSheetVisible(false)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={[styles.lensSheet, { maxHeight: SCREEN_HEIGHT - insets.top - 40 }, sign ? { borderTopColor: sign.color } : {}]}>
+              <View style={styles.lensSheetHeader}>
+                <Text style={styles.lensSheetSymbol}>{persona?.avatar ?? sign?.symbol}</Text>
+                <Text style={[styles.lensSheetTitle, { color: sign?.color ?? '#9b59b6' }]}>
+                  {persona?.displayName ?? (sign ? dropThe(sign.name) : '')}
+                </Text>
+              </View>
+              <GHScrollView
+                style={[styles.lensScroll, { maxHeight: SCREEN_HEIGHT - insets.top - 300 }]}
+                showsVerticalScrollIndicator
+              >
+                <Text style={styles.lensIntro}>{take.headline}</Text>
+                <Text style={styles.takeSheetBlurb}>{take.blurb}</Text>
+              </GHScrollView>
+              <TouchableOpacity
+                style={[styles.lensDoneButton, { backgroundColor: sign?.color ?? '#9b59b6' }]}
+                onPress={() => presentShareOptions(take, sign ?? undefined, persona)}
+              >
+                <Text style={styles.lensDoneText}>Share</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.takeSheetCloseButton}
+                onPress={() => setTakeSheetVisible(false)}
+              >
+                <Text style={styles.takeSheetCloseText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+        </View>
+      )}
+      {captureView}
     </>
   )
 }
@@ -390,6 +447,7 @@ const styles = StyleSheet.create({
   shareButtonText: { color: '#fff', fontSize: 18, fontWeight: '800' },
   titleBar: { backgroundColor: '#1a1a2e', paddingHorizontal: 16, paddingVertical: 10 },
   titleText: { color: '#ddd', fontSize: 13, lineHeight: 19 },
+  titleBarButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   webview: { flex: 1 },
   webLoading: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0d0d1a', zIndex: 10 },
   noUrl: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -409,11 +467,14 @@ const styles = StyleSheet.create({
   readerDivider: { height: 1, backgroundColor: '#1a1a2e', marginVertical: 20 },
   lensButton: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginTop: 10, paddingVertical: 7, paddingHorizontal: 12,
+    paddingVertical: 7, paddingHorizontal: 12,
     borderRadius: 20, borderWidth: 1, alignSelf: 'flex-start',
   },
   lensButtonSymbol: { fontSize: 14 },
   lensButtonText: { fontSize: 12, fontWeight: '700' },
+  takeSheetBlurb: { color: '#bbb', fontSize: 14, lineHeight: 21, marginTop: 4 },
+  takeSheetCloseButton: { alignItems: 'center', marginTop: 12, paddingVertical: 6 },
+  takeSheetCloseText: { color: '#888', fontWeight: '600', fontSize: 13 },
   lensBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   lensSheet: {
     backgroundColor: '#1a1a2e', borderTopLeftRadius: 24, borderTopRightRadius: 24,

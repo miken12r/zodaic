@@ -15,6 +15,7 @@ export interface SignTakeMeta {
 }
 
 export interface SignTakeResult {
+  id: string
   headline: string
   blurb: string
   cached: boolean
@@ -28,13 +29,13 @@ export async function getOrGenerateSignTake(
 ): Promise<SignTakeResult> {
   const { data: existing } = await supabase
     .from('sign_takes')
-    .select('headline, blurb')
+    .select('id, headline, blurb')
     .eq('content_item_id', meta.content_id)
     .eq('zodaic_sign_id', meta.zodaic_sign_id)
     .maybeSingle()
 
   if (existing) {
-    return { headline: existing.headline, blurb: existing.blurb, cached: true }
+    return { id: existing.id, headline: existing.headline, blurb: existing.blurb, cached: true }
   }
 
   const persona = PERSONA_BY_SIGN_ID[meta.zodaic_sign_id]
@@ -85,18 +86,24 @@ Respond with valid JSON only:
     throw new Error('Malformed sign-take response')
   }
 
-  await supabase.from('sign_takes').upsert(
-    {
-      content_item_id: meta.content_id,
-      zodaic_sign_id: meta.zodaic_sign_id,
-      persona_version: persona.version,
-      headline: parsed.headline,
-      blurb: parsed.blurb,
-      generation_source: generationSource,
-      model: 'claude-haiku-4-5-20251001',
-    },
-    { onConflict: 'content_item_id,zodaic_sign_id' }
-  )
+  const { data: inserted, error: upsertError } = await supabase
+    .from('sign_takes')
+    .upsert(
+      {
+        content_item_id: meta.content_id,
+        zodaic_sign_id: meta.zodaic_sign_id,
+        persona_version: persona.version,
+        headline: parsed.headline,
+        blurb: parsed.blurb,
+        generation_source: generationSource,
+        model: 'claude-haiku-4-5-20251001',
+      },
+      { onConflict: 'content_item_id,zodaic_sign_id' }
+    )
+    .select('id')
+    .single()
 
-  return { headline: parsed.headline, blurb: parsed.blurb, cached: false }
+  if (upsertError || !inserted) throw upsertError ?? new Error('Failed to write sign take')
+
+  return { id: inserted.id, headline: parsed.headline, blurb: parsed.blurb, cached: false }
 }

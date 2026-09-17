@@ -31,8 +31,8 @@ export async function fetchSignTakes(limit = 50): Promise<SignTake[]> {
 export async function getOrGenerateSignTake(params: {
   content_id: string
   zodaic_sign_id: number
-}): Promise<{ headline: string; blurb: string; cached: boolean }> {
+}): Promise<{ id: string; headline: string; blurb: string; cached: boolean }> {
   const { data, error } = await supabase.functions.invoke('generate-sign-take', { body: params })
   if (error) throw error
-  return data as { headline: string; blurb: string; cached: boolean }
+  return data as { id: string; headline: string; blurb: string; cached: boolean }
 }
