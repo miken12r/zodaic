@@ -471,3 +471,11 @@ export async function createShare(
   if (error) throw error
   return data as Share
 }
+
+// Permanently delete the current user's account. Server-side deletion cascades through
+// every table referencing profiles/auth.users; signs out locally only after that succeeds.
+export async function deleteAccount(): Promise<void> {
+  const { error } = await supabase.functions.invoke('delete-account')
+  if (error) throw error
+  await supabase.auth.signOut()
+}

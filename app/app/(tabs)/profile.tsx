@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { Profile, UserSignAffinity, Horoscope } from '@/types'
-import { fetchUserAffinities, fetchHoroscope, generateHoroscope, fetchFollowCounts } from '@/lib/api'
+import { fetchUserAffinities, fetchHoroscope, generateHoroscope, fetchFollowCounts, deleteAccount } from '@/lib/api'
 import { SIGN_BY_ID } from '@/constants/signs'
 import FeedSettings from '@/components/FeedSettings'
 
@@ -135,6 +135,29 @@ export default function ProfileScreen() {
     await supabase.auth.signOut()
   }
 
+  const [deleting, setDeleting] = useState(false)
+
+  function confirmDeleteAccount() {
+    Alert.alert(
+      'Delete Account',
+      'This permanently deletes your account, profile, follows, and shared posts. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: handleDeleteAccount },
+      ]
+    )
+  }
+
+  async function handleDeleteAccount() {
+    setDeleting(true)
+    try {
+      await deleteAccount()
+    } catch {
+      Alert.alert('Error', 'Could not delete your account. Please try again.')
+      setDeleting(false)
+    }
+  }
+
   const primarySign = profile?.primary_zodaic_sign_id ? SIGN_BY_ID[profile.primary_zodaic_sign_id] : null
 
   return (
@@ -243,6 +266,10 @@ export default function ProfileScreen() {
       )}
 
       <FeedSettings />
+
+      <TouchableOpacity style={styles.deleteAccountButton} onPress={confirmDeleteAccount} disabled={deleting}>
+        <Text style={styles.deleteAccountText}>{deleting ? 'Deleting…' : 'Delete Account'}</Text>
+      </TouchableOpacity>
     </ScrollView>
     </View>
   )
@@ -259,6 +286,11 @@ const styles = StyleSheet.create({
   content: { padding: 24, paddingTop: 8, paddingBottom: 32 },
   title: { fontSize: 28, fontWeight: '800', color: '#fff' },
   signOutText: { color: '#9b59b6', fontSize: 14, fontWeight: '600' },
+  deleteAccountButton: {
+    alignItems: 'center', marginTop: 32, paddingTop: 20,
+    borderTopWidth: 1, borderTopColor: '#1a1a2e',
+  },
+  deleteAccountText: { color: '#994444', fontSize: 13, fontWeight: '600' },
   countsRow: { flexDirection: 'row', backgroundColor: '#1a1a2e', borderRadius: 16, padding: 16, marginBottom: 20 },
   countItem: { flex: 1, alignItems: 'center' },
   countNumber: { color: '#fff', fontSize: 22, fontWeight: '800' },
