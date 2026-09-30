@@ -72,7 +72,14 @@ export default function TakesScreen() {
           <TouchableOpacity style={styles.signBadge} onPress={() => setSelectedSignId(item.zodaic_sign_id)}>
             <Text style={[styles.signBadgeText, { color: sign?.color }]}>{persona?.avatar ?? sign?.symbol} {persona?.displayName ?? sign?.name} ›</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.shareIconButton} onPress={() => presentShareOptions(item, sign, persona)}>
+          <TouchableOpacity
+            style={styles.shareIconButton}
+            onPress={() => presentShareOptions(
+              { id: item.id, headline: item.headline, body: item.blurb, url: item.content_item?.url ?? '' },
+              sign,
+              persona
+            )}
+          >
             <Text style={styles.shareIconText}>↗</Text>
           </TouchableOpacity>
         </View>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Dimensions } from 'react-native'
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Dimensions, ActionSheetIOS, Share } from 'react-native'
 import { ScrollView as GHScrollView } from 'react-native-gesture-handler'
 import { WebView } from 'react-native-webview'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -223,6 +223,22 @@ export default function ArticleScreen() {
     }
   }
 
+  async function handleShareLink() {
+    try {
+      await Share.share({ url: url as string, message: title ? `${title}\n${url}` : (url as string) })
+    } catch {}
+  }
+
+  function handleSharePress() {
+    ActionSheetIOS.showActionSheetWithOptions(
+      { options: ['Share to Feed', 'Share Link', 'Cancel'], cancelButtonIndex: 2 },
+      (index) => {
+        if (index === 0) handleShare()
+        else if (index === 1) handleShareLink()
+      }
+    )
+  }
+
   return (
     <>
     <SignDetailModal signId={signModalVisible ? sign?.id ?? null : null} onClose={() => setSignModalVisible(false)} />
@@ -257,8 +273,8 @@ export default function ArticleScreen() {
 
         <TouchableOpacity
           style={[styles.shareButton, shared && styles.shareButtonDone]}
-          onPress={handleShare}
-          disabled={sharing || shared || !contentId}
+          onPress={handleSharePress}
+          disabled={sharing || !contentId}
         >
           <Text style={styles.shareButtonText}>
             {shared ? '✓' : sharing ? '...' : '↑'}
@@ -367,10 +383,25 @@ export default function ArticleScreen() {
                 </GHScrollView>
               )}
               <TouchableOpacity
-                style={[styles.lensDoneButton, { backgroundColor: sign?.color ?? '#9b59b6' }]}
+                style={[styles.lensDoneButton, { backgroundColor: sign?.color ?? '#9b59b6' }, !lensText && styles.lensDoneButtonDisabled]}
+                disabled={!lensText}
+                onPress={() => lensText && presentShareOptions(
+                  {
+                    headline: sign ? `${dropThe(sign.name)} View` : 'Lens',
+                    body: lensText.intro + '\n\n' + lensText.bullets.map((b) => `• ${b}`).join('\n'),
+                    url: url as string,
+                  },
+                  sign ?? undefined,
+                  persona
+                )}
+              >
+                <Text style={styles.lensDoneText}>Share</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.takeSheetCloseButton}
                 onPress={() => setLensVisible(false)}
               >
-                <Text style={styles.lensDoneText}>Done</Text>
+                <Text style={styles.takeSheetCloseText}>Done</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -398,7 +429,11 @@ export default function ArticleScreen() {
               </GHScrollView>
               <TouchableOpacity
                 style={[styles.lensDoneButton, { backgroundColor: sign?.color ?? '#9b59b6' }]}
-                onPress={() => presentShareOptions(take, sign ?? undefined, persona)}
+                onPress={() => presentShareOptions(
+                  { id: take.id, headline: take.headline, body: take.blurb, url: url as string },
+                  sign ?? undefined,
+                  persona
+                )}
               >
                 <Text style={styles.lensDoneText}>Share</Text>
               </TouchableOpacity>
@@ -493,5 +528,6 @@ const styles = StyleSheet.create({
   lensBulletDot: { fontSize: 16, lineHeight: 24, fontWeight: '800' },
   lensBulletText: { flex: 1, color: '#bbb', fontSize: 14, lineHeight: 22 },
   lensDoneButton: { borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 24 },
+  lensDoneButtonDisabled: { opacity: 0.5 },
   lensDoneText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 })
