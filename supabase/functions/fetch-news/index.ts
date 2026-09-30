@@ -52,7 +52,7 @@ Respond with valid JSON only, no other text:
   "zodaic_sign_id": <number 1-12>,
   "classification_confidence": <float 0.0-1.0>,
   "characteristics": ["trait1", "trait2", "trait3"],
-  "description": "1-2 sentence description of why this article fits this sign"
+  "description": "1-2 sentence description of why this article fits this sign. Start directly with the substance — do not open with meta-commentary like 'This article covers' or 'This piece discusses'."
 }`
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {

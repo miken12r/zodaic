@@ -58,7 +58,7 @@ Classification priority:
 Respond with valid JSON only, no other text:
 {
   "title": "short descriptive title for this specific content",
-  "description": "2-3 sentences on what this content is about and why it fits this sign",
+  "description": "2-3 sentences on what this content is about and why it fits this sign. Start directly with the substance — do not open with meta-commentary like 'This article covers' or 'This piece discusses'.",
   "zodaic_sign_id": <number 1-12>,
   "classification_confidence": <float 0.0-1.0>,
   "characteristics": ["trait1", "trait2", "trait3"]

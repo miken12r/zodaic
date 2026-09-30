@@ -86,11 +86,12 @@ function parseReaderContent(article: { title: string; byline: string; site_name:
 }
 
 export default function ArticleScreen() {
-  const { url, contentId, signId, title, confidence, characteristics, takeId, takeHeadline, takeBlurb } = useLocalSearchParams<{
+  const { url, contentId, signId, title, description, confidence, characteristics, takeId, takeHeadline, takeBlurb } = useLocalSearchParams<{
     url: string
     contentId: string
     signId: string
     title: string
+    description: string
     confidence: string
     characteristics: string
     takeId: string
@@ -371,6 +372,7 @@ export default function ArticleScreen() {
                   style={[styles.lensScroll, { maxHeight: SCREEN_HEIGHT - insets.top - 300 }]}
                   showsVerticalScrollIndicator
                 >
+                  {description ? <Text style={styles.lensArticleSummary}>{description}</Text> : null}
                   <Text style={styles.lensIntro}>{lensText.intro}</Text>
                   <View style={styles.lensBullets}>
                     {lensText.bullets.map((b, i) => (
@@ -522,6 +524,10 @@ const styles = StyleSheet.create({
   lensSpinner: { alignItems: 'center', paddingVertical: 32, gap: 12 },
   lensSpinnerText: { color: '#555', fontSize: 13 },
   lensScroll: { flexGrow: 0, flexShrink: 1 },
+  lensArticleSummary: {
+    color: '#999', fontSize: 13, lineHeight: 20, fontStyle: 'italic',
+    marginBottom: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
   lensIntro: { color: '#ddd', fontSize: 15, lineHeight: 24, marginBottom: 16 },
   lensBullets: { gap: 12 },
   lensBulletRow: { flexDirection: 'row', gap: 10 },

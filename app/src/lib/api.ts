@@ -263,6 +263,7 @@ export function getShareRoute(share: ResolvedShare): { pathname: string; params:
       contentId: share.content_item.id,
       signId: String(share.content_item.zodaic_sign_id),
       title: share.content_item.title ?? '',
+      description: share.content_item.description ?? '',
       confidence: String(share.content_item.classification_confidence ?? 0),
       characteristics: JSON.stringify(share.content_item.characteristics ?? []),
       ...(share.content_type === 'sign_take' && share.sign_take

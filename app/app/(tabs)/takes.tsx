@@ -54,6 +54,7 @@ export default function TakesScreen() {
         contentId: take.content_item_id,
         signId: String(take.zodaic_sign_id),
         title: take.content_item?.title ?? '',
+        description: take.content_item?.description ?? '',
         confidence: String(take.content_item?.classification_confidence ?? 0),
         characteristics: JSON.stringify(take.content_item?.characteristics ?? []),
         takeId: take.id,

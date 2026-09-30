@@ -97,6 +97,7 @@ export default function SitesScreen() {
         contentId: classifyResult.id,
         signId: String(classifyResult.zodaic_sign_id),
         title: classifyResult.title ?? '',
+        description: classifyResult.description ?? '',
         confidence: String(classifyResult.classification_confidence),
         characteristics: JSON.stringify(classifyResult.characteristics ?? []),
       },
