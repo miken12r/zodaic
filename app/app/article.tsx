@@ -390,6 +390,7 @@ export default function ArticleScreen() {
                 onPress={() => lensText && presentShareOptions(
                   {
                     headline: sign ? `${dropThe(sign.name)} View` : 'Lens',
+                    summary: description || undefined,
                     body: lensText.intro + '\n\n' + lensText.bullets.map((b) => `• ${b}`).join('\n'),
                     url: url as string,
                   },

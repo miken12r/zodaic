@@ -10,6 +10,7 @@ import { ZodaicSign, SignPersona } from '@/types'
 export interface ShareableContent {
   id?: string
   headline: string
+  summary?: string
   body: string
   url: string
 }
@@ -53,7 +54,8 @@ export function useSignTakeSharing() {
   }
 
   async function copyText(content: ShareableContent, sign?: ZodaicSign, persona?: SignPersona) {
-    const text = `${content.headline}\n\n${content.body}\n\n${content.url}\n\n— ${persona?.displayName ?? sign?.name}, via ZodAIc`
+    const summaryBlock = content.summary ? `${content.summary}\n\n⸻\n\n` : ''
+    const text = `${content.headline}\n\n${summaryBlock}${content.body}\n\n${content.url}\n\n— ${persona?.displayName ?? sign?.name}, via ZodAIc`
     await Clipboard.setStringAsync(text)
     Alert.alert('Copied', 'Paste it anywhere — Messages, notes, wherever.')
   }
@@ -84,6 +86,9 @@ export function useSignTakeSharing() {
           {sharing.persona?.displayName ?? sharing.sign?.name}
         </Text>
         <Text style={styles.shareCardHeadline}>{sharing.content.headline}</Text>
+        {sharing.content.summary ? (
+          <Text style={styles.shareCardSummary}>{sharing.content.summary}</Text>
+        ) : null}
         <Text style={styles.shareCardBlurb}>{sharing.content.body}</Text>
         <View style={styles.shareCardFooter}>
           <Text style={styles.shareCardFooterText}>ZodAIc · your horoscope has opinions</Text>
@@ -106,6 +111,10 @@ const styles = StyleSheet.create({
   shareCardAvatar: { fontSize: 40, marginBottom: 8 },
   shareCardPersona: { fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 },
   shareCardHeadline: { color: '#fff', fontSize: 21, fontWeight: '800', lineHeight: 28, marginBottom: 12 },
+  shareCardSummary: {
+    color: '#999', fontSize: 13, lineHeight: 20, fontStyle: 'italic',
+    marginBottom: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.15)',
+  },
   shareCardBlurb: { color: '#ccc', fontSize: 15, lineHeight: 22, marginBottom: 20 },
   shareCardFooter: { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.15)', paddingTop: 12, gap: 4 },
   shareCardFooterText: { color: '#888', fontSize: 12, fontWeight: '700' },
