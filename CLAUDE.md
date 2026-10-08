@@ -6,6 +6,16 @@ compatibility readings) via Claude. Full setup, deploy steps, and the
 "Key Decisions" rationale live in `README.md` — read it before changing
 architecture.
 
+## Vision
+
+ZodAIc is a **tool for understanding perspectives**: each persona reads the
+same content through a different worldview. The 12 zodiac signs are the first
+classification framework, not the point. Others (e.g. Myers-Briggs) are planned
+to better qualify online content. When touching the sign model (`signs.ts`,
+`personas.ts`, classification prompts, `zodaic_sign_id` columns), don't deepen
+zodiac-only assumptions where a framework-agnostic shape costs little. Frame
+user-facing copy around perspective-taking rather than astrology.
+
 ## Layout
 
 - `app/` — Expo SDK 54 (New Architecture) + expo-router. Run commands from here.
