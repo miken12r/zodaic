@@ -272,7 +272,7 @@ export default function HomeScreen() {
 
       return (
         <Swipeable
-          ref={(ref) => swipeableRefs.current.set(contentId, ref)}
+          ref={(ref) => { swipeableRefs.current.set(contentId, ref) }}
           renderRightActions={renderRightActions}
           friction={2}
           rightThreshold={40}

@@ -40,6 +40,7 @@ export interface ContentItem {
   url: string
   title: string
   description: string | null
+  image_url?: string | null
   zodaic_sign_id: number
   classification_confidence: number
   characteristics: string[]

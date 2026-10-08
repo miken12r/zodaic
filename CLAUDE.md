@@ -68,7 +68,7 @@ The project-structure section of `README.md` still uses some old names.
 There is no test suite. From `app/`:
 
 ```bash
-npx tsc --noEmit   # type check — should be clean
+npx tsc --noEmit   # type check — keep it at zero errors
 npm run lint       # expo lint
 ```
 
