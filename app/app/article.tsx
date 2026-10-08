@@ -242,7 +242,6 @@ export default function ArticleScreen() {
 
   return (
     <>
-    <SignDetailModal signId={signModalVisible ? sign?.id ?? null : null} onClose={() => setSignModalVisible(false)} />
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Sign header bar */}
       <View style={[styles.header, sign ? { borderBottomColor: sign.color } : {}]}>
@@ -451,6 +450,7 @@ export default function ArticleScreen() {
         </TouchableOpacity>
         </View>
       )}
+      <SignDetailModal inline signId={signModalVisible ? sign?.id ?? null : null} onClose={() => setSignModalVisible(false)} />
       {captureView}
     </>
   )

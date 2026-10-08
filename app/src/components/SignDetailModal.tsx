@@ -1,25 +1,32 @@
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
+import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, useWindowDimensions } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SIGN_BY_ID } from '@/constants/signs'
 
 interface Props {
   signId: number | null
   onClose: () => void
+  // Render as an in-tree overlay instead of a native Modal. Use this on screens
+  // that are themselves presented modally (e.g. article.tsx) — stacking a second
+  // native modal there mispositions and clips the sheet. Render it last so it
+  // sits on top.
+  inline?: boolean
 }
 
 const ELEMENT_SYMBOLS: Record<string, string> = {
   fire: '🔥', earth: '🌍', air: '💨', water: '💧',
 }
 
-export default function SignDetailModal({ signId, onClose }: Props) {
+export default function SignDetailModal({ signId, onClose, inline }: Props) {
+  const { height: windowHeight } = useWindowDimensions()
+  const insets = useSafeAreaInsets()
   const sign = signId ? SIGN_BY_ID[signId] : null
 
   if (!sign) return null
 
-  return (
-    <Modal visible={!!signId} transparent animationType="slide" onRequestClose={onClose}>
+  const content = (
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-          <View style={[styles.sheet, { borderTopColor: sign.color }]}>
+          <View style={[styles.sheet, { maxHeight: windowHeight - insets.top - 40, borderTopColor: sign.color }]}>
             <ScrollView showsVerticalScrollIndicator={false}>
               {/* Header */}
               <View style={styles.header}>
@@ -57,6 +64,13 @@ export default function SignDetailModal({ signId, onClose }: Props) {
           </View>
         </TouchableOpacity>
       </TouchableOpacity>
+  )
+
+  if (inline) return <View style={StyleSheet.absoluteFillObject}>{content}</View>
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      {content}
     </Modal>
   )
 }
@@ -65,7 +79,7 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: '#1a1a2e', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 24, paddingBottom: 48, borderTopWidth: 3, maxHeight: '75%',
+    padding: 24, paddingBottom: 48, borderTopWidth: 3,
   },
   header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 },
   symbol: { fontSize: 48, marginRight: 16 },
