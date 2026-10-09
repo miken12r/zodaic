@@ -3,8 +3,7 @@ import { View, Text, FlatList, StyleSheet, TouchableOpacity, ScrollView, Activit
 import { useFocusEffect, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '@/lib/supabase'
-import { fetchSites, followSite, unfollowSite, classifyContent, createShare, Site } from '@/lib/api'
-import { ContentItem } from '@/types'
+import { fetchSites, followSite, unfollowSite, classifyContent, Site } from '@/lib/api'
 import { SIGN_BY_ID, ZODAIC_SIGNS } from '@/constants/signs'
 import SignDetailModal from '@/components/SignDetailModal'
 
@@ -21,9 +20,6 @@ export default function SitesScreen() {
   const [classifyModalVisible, setClassifyModalVisible] = useState(false)
   const [classifyUrl, setClassifyUrl] = useState('')
   const [classifyLoading, setClassifyLoading] = useState(false)
-  const [classifyResult, setClassifyResult] = useState<ContentItem | null>(null)
-  const [sharing, setSharing] = useState(false)
-  const [shared, setShared] = useState(false)
   const router = useRouter()
 
   useFocusEffect(useCallback(() => {
@@ -55,16 +51,29 @@ export default function SitesScreen() {
     })
   }
 
+  // A classified URL opens straight into the article screen — the same view as
+  // the News feed, with the {Sign} View / Hot Take sheets and Share to Feed /
+  // Share Link — rather than a separate result card inside this modal.
   async function handleClassify() {
     const target = classifyUrl.trim()
-    if (!target) return
+    if (!target || classifyLoading) return
     Keyboard.dismiss()
     setClassifyLoading(true)
-    setClassifyResult(null)
-    setShared(false)
     try {
       const item = await classifyContent(target)
-      setClassifyResult(item)
+      setClassifyModalVisible(false)
+      router.push({
+        pathname: '/article',
+        params: {
+          url: item.url,
+          contentId: item.id,
+          signId: String(item.zodaic_sign_id),
+          title: item.title ?? '',
+          description: item.description ?? '',
+          confidence: String(item.classification_confidence),
+          characteristics: JSON.stringify(item.characteristics ?? []),
+        },
+      })
     } catch (e) {
       Alert.alert('Error', 'Could not classify this URL. Please try another.')
     } finally {
@@ -72,46 +81,10 @@ export default function SitesScreen() {
     }
   }
 
-  async function handleShare() {
-    if (!classifyResult) return
-    setSharing(true)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not logged in')
-      await createShare(user.id, 'sign_reading', classifyResult.id, `${classifyResult.title} is ${classifySign?.name} energy.`)
-      setShared(true)
-    } catch (e) {
-      Alert.alert('Error', 'Could not share this reading.')
-    } finally {
-      setSharing(false)
-    }
-  }
-
-  function handleReadArticle() {
-    if (!classifyResult) return
-    setClassifyModalVisible(false)
-    router.push({
-      pathname: '/article',
-      params: {
-        url: classifyResult.url,
-        contentId: classifyResult.id,
-        signId: String(classifyResult.zodaic_sign_id),
-        title: classifyResult.title ?? '',
-        description: classifyResult.description ?? '',
-        confidence: String(classifyResult.classification_confidence),
-        characteristics: JSON.stringify(classifyResult.characteristics ?? []),
-      },
-    })
-  }
-
   function handleOpenClassify() {
     setClassifyUrl('')
-    setClassifyResult(null)
-    setShared(false)
     setClassifyModalVisible(true)
   }
-
-  const classifySign = classifyResult ? SIGN_BY_ID[classifyResult.zodaic_sign_id] : null
 
   const displayed = showFollowing ? sites.filter((s) => s.is_following) : sites
 
@@ -255,56 +228,6 @@ export default function SitesScreen() {
                   </View>
                 )}
 
-                {classifyResult && classifySign && (
-                  <View style={[styles.resultCard, { borderColor: classifySign.color }]}>
-                    <Text style={styles.resultTitle}>{classifyResult.title}</Text>
-                    <Text style={styles.resultUrl} numberOfLines={1}>{classifyResult.url}</Text>
-
-                    <View style={styles.divider} />
-
-                    <TouchableOpacity onPress={() => setSelectedSignId(classifySign.id)}>
-                      <Text style={styles.signSymbol}>{classifySign.symbol}</Text>
-                      <Text style={[styles.signName, { color: classifySign.color }]}>{classifySign.name} ›</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.signAnalog}>Digital {classifySign.traditional_analog}</Text>
-                    <Text style={styles.signTagline}>{classifySign.tagline}</Text>
-
-                    <View style={styles.divider} />
-
-                    {classifyResult.description && (
-                      <Text style={styles.description}>{classifyResult.description}</Text>
-                    )}
-
-                    <View style={styles.confidence}>
-                      <Text style={styles.confidenceLabel}>Classification confidence</Text>
-                      <Text style={[styles.confidenceValue, { color: classifySign.color }]}>
-                        {Math.round(classifyResult.classification_confidence * 100)}%
-                      </Text>
-                    </View>
-
-                    <View style={styles.traits}>
-                      {(classifyResult.characteristics ?? []).map((c) => (
-                        <View key={c} style={styles.trait}>
-                          <Text style={styles.traitText}>{c}</Text>
-                        </View>
-                      ))}
-                    </View>
-
-                    <TouchableOpacity style={styles.readButton} onPress={handleReadArticle}>
-                      <Text style={styles.readButtonText}>Read Article →</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.shareButton, shared && styles.shareButtonDone]}
-                      onPress={handleShare}
-                      disabled={sharing || shared}
-                    >
-                      <Text style={styles.shareButtonText}>
-                        {shared ? 'Shared to Feed ✓' : sharing ? 'Sharing...' : 'Share to Feed'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
               </ScrollView>
             </View>
           </TouchableOpacity>
@@ -396,30 +319,4 @@ const styles = StyleSheet.create({
   buttonText: { color: '#fff', fontSize: 22, fontWeight: '700' },
   loadingCard: { alignItems: 'center', padding: 40, gap: 16 },
   loadingText: { color: '#9b59b6', fontSize: 15 },
-  resultCard: {
-    backgroundColor: '#0d0d1a',
-    borderRadius: 20,
-    padding: 24,
-    borderWidth: 1,
-    marginBottom: 24,
-  },
-  resultTitle: { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 4 },
-  resultUrl: { color: '#666', fontSize: 12, marginBottom: 16 },
-  divider: { height: 1, backgroundColor: '#2a2a3e', marginVertical: 16 },
-  signSymbol: { fontSize: 40, textAlign: 'center', marginBottom: 8 },
-  signName: { fontSize: 22, fontWeight: '800', textAlign: 'center', marginBottom: 4 },
-  signAnalog: { color: '#888', fontSize: 13, textAlign: 'center', marginBottom: 6 },
-  signTagline: { color: '#ccc', fontSize: 14, fontStyle: 'italic', textAlign: 'center' },
-  description: { color: '#bbb', fontSize: 14, lineHeight: 22, marginBottom: 16 },
-  confidence: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  confidenceLabel: { color: '#666', fontSize: 13 },
-  confidenceValue: { fontSize: 16, fontWeight: '700' },
-  traits: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  trait: { backgroundColor: '#2a1a3e', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4 },
-  traitText: { color: '#9b59b6', fontSize: 12 },
-  readButton: { borderWidth: 1, borderColor: '#9b59b6', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 8 },
-  readButtonText: { color: '#9b59b6', fontWeight: '700', fontSize: 15 },
-  shareButton: { backgroundColor: '#9b59b6', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 8 },
-  shareButtonDone: { backgroundColor: '#2a1a3e' },
-  shareButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 })
