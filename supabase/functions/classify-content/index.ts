@@ -1,4 +1,5 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { resolveContent } from '../_shared/resolveContent.ts'
 
 const SIGNS = [
   { id: 1, slug: 'catalyst', name: 'The Catalyst', traditional: 'Aries', traits: 'breaking news, startups, viral trends, disruptive ideas, product launches' },
@@ -39,6 +40,17 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'API key not configured' }), { status: 500 })
     }
 
+    // Follow redirects (incl. aggregator links like apple.news) to the source
+    // page and read it, so we classify the real content rather than the URL text.
+    const resolved = await resolveContent(url)
+    console.log('Resolved URL:', resolved.url, resolved.text ? '(with article text)' : resolved.title ? '(metadata only)' : '(URL only)')
+
+    const contentBlock = resolved.title || resolved.description || resolved.text
+      ? `Analyze this content (fetched from the page itself):
+URL: ${resolved.url}${resolved.siteName ? `\nSite: ${resolved.siteName}` : ''}${resolved.title ? `\nTitle: ${resolved.title}` : ''}${resolved.description ? `\nDescription: ${resolved.description}` : ''}${resolved.text ? `\nArticle text (excerpt):\n${resolved.text}` : ''}`
+      : `Analyze this URL: ${resolved.url}
+(The page could not be fetched — infer from the URL path and your knowledge of it.)`
+
     const signsDescription = SIGNS.map(s =>
       `${s.id}. ${s.name} (${s.traditional}): ${s.traits}`
     ).join('\n')
@@ -48,10 +60,10 @@ Deno.serve(async (req) => {
 The 12 ZodAIc signs are:
 ${signsDescription}
 
-Analyze this URL: ${url}
+${contentBlock}
 
 Classification priority:
-1. If this is a specific article or page (not a homepage), classify by the CONTENT of that specific piece — the topic, angle, and framing suggested by the URL path and your knowledge of it — not by the outlet's general identity.
+1. If this is a specific article or page (not a homepage), classify by the CONTENT of that specific piece — its topic, angle, and framing — not by the outlet's general identity.
 2. Use the publishing outlet as a secondary signal for editorial tone and framing (e.g. an investigative piece on a tabloid vs. a broadsheet may differ).
 3. If this is a homepage or domain root, classify the site's overall identity and purpose.
 
@@ -100,7 +112,7 @@ Respond with valid JSON only, no other text:
 
     const { data, error } = await supabase
       .from('content_items')
-      .upsert({ url, ...classification }, { onConflict: 'url' })
+      .upsert({ url: resolved.url, ...classification }, { onConflict: 'url' })
       .select()
       .single()
 

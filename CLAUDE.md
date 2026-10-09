@@ -52,9 +52,15 @@ The project-structure section of `README.md` still uses some old names.
   the client's path-aliased file, so **edit both** when changing persona data.
 - **Sign-trait prompt text is duplicated** across `classify-content`,
   `fetch-news`, and `generate-lens`. Keep them consistent when changing one.
-- **Claude model**: edge functions use `claude-haiku-4-5-20251001` (cheap,
-  high-volume). Don't swap models without checking cost/volume (see the
+- **Claude model**: high-volume edge functions (`fetch-news`, `generate-lens`,
+  sign takes) use `claude-haiku-4-5-20251001`; lower-volume `classify-content`,
+  `generate-horoscope`, and `generate-portails` use `claude-sonnet-4-6`.
+  Don't swap models without checking cost/volume (see the
   `BATCH_GENERATION_LIMIT` comment in `generate-sign-takes-batch`).
+- **User-submitted URLs** go through `_shared/resolveContent.ts`, which follows
+  HTTP and client-side redirects (e.g. apple.news) to the source page and reads
+  it, so classification uses real content and items are stored under the source
+  URL.
 - **RLS idiom**: public-readable content tables (`sign_takes`, `shares`, …)
   allow anyone to read and only the service role to write.
 - **Account deletion** relies on FK cascades from `auth.users`/`profiles`. New
