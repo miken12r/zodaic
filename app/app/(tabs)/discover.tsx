@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, FlatList, Alert } from 'react-native'
 import SignDetailModal from '@/components/SignDetailModal'
 import UserProfileSheet from '@/components/UserProfileSheet'
@@ -7,7 +7,7 @@ import { createShare, fetchTopUrlsForSign, fetchContentItem, fetchUsers, followU
 import { ContentItem } from '@/types'
 import { SIGN_BY_ID } from '@/constants/signs'
 import { supabase } from '@/lib/supabase'
-import { useFocusEffect, useLocalSearchParams, useRouter, useNavigation } from 'expo-router'
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 
 export default function DiscoverScreen() {
   const { signId, contentId } = useLocalSearchParams<{ signId?: string; contentId?: string }>()
@@ -15,7 +15,6 @@ export default function DiscoverScreen() {
 
   function handleReadArticle() {
     if (!result) return
-    const sign = SIGN_BY_ID[result.zodaic_sign_id]
     router.push({
       pathname: '/article',
       params: {
@@ -81,7 +80,7 @@ export default function DiscoverScreen() {
     } else {
       setFilteredUrls([])
     }
-  }, [filteredSignId]))
+  }, [filteredSignId, signId, contentId]))
 
   async function handleShare() {
     if (!result) return
@@ -91,7 +90,7 @@ export default function DiscoverScreen() {
       if (!user) throw new Error('Not logged in')
       await createShare(user.id, 'sign_reading', result.id, `${result.title} is ${sign?.name} energy.`)
       setShared(true)
-    } catch (e) {
+    } catch {
       Alert.alert('Error', 'Could not share this reading.')
     } finally {
       setSharing(false)

@@ -1,9 +1,7 @@
-import { useEffect } from 'react'
-import { Stack } from 'expo-router'
+import { useEffect, useState } from 'react'
+import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { supabase } from '@/lib/supabase'
-import { useRouter, useSegments } from 'expo-router'
-import { useState } from 'react'
 import { Session } from '@supabase/supabase-js'
 import { View, ActivityIndicator } from 'react-native'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
@@ -40,7 +38,7 @@ export default function RootLayout() {
     } else if (session && !inTabsGroup && !inAuthGroup && !inModal) {
       router.replace('/(tabs)/home')
     }
-  }, [session, loading, segments])
+  }, [session, loading, segments, router])
 
   if (loading) {
     return (

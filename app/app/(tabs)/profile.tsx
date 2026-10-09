@@ -44,7 +44,6 @@ function getZodaicSignId(birthDate: string): number | null {
 }
 
 export default function ProfileScreen() {
-  const [userId, setUserId] = useState<string | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [username, setUsername] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -58,7 +57,6 @@ export default function ProfileScreen() {
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return
-      setUserId(user.id)
       const [{ data }, affinityData, counts] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', user.id).single(),
         fetchUserAffinities(user.id).catch(() => []),

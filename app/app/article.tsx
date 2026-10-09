@@ -46,7 +46,7 @@ function innerText(html: string): string {
 
 function parseReaderContent(article: { title: string; byline: string; site_name: string; content: string }): ReaderContent {
   const html = article.content
-  const positioned: Array<{ pos: number; block: ReaderBlock }> = []
+  const positioned: { pos: number; block: ReaderBlock }[] = []
 
   // Extract images in document order
   const imgPattern = /<img[^>]+>/gi
@@ -120,6 +120,8 @@ export default function ArticleScreen() {
   // Load sticky reader mode preference on mount
   useEffect(() => {
     loadFeedSettings().then((s) => { if (s.readerMode) activateReaderMode() })
+    // Mount-only: applies the saved preference once, not on every re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const sign = signId ? SIGN_BY_ID[parseInt(signId)] : null
@@ -150,6 +152,8 @@ export default function ArticleScreen() {
     }
     prefetch()
     return () => { cancelled = true }
+    // Keyed on contentId: the other route params are fixed for a given article.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contentId])
 
   // Fetch/generate a sign take for this article if it wasn't already handed to us via
@@ -159,6 +163,8 @@ export default function ArticleScreen() {
     getOrGenerateSignTake({ content_id: contentId as string, zodaic_sign_id: parseInt(signId as string) })
       .then((r) => setTake({ id: r.id, headline: r.headline, blurb: r.blurb }))
       .catch(() => {})
+    // Keyed on contentId: the other route params are fixed for a given article.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contentId])
 
   async function handleLensOpen() {

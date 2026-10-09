@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Linking, Modal, TextInput, Alert, KeyboardAvoidingView, Platform, Dimensions, Keyboard } from 'react-native'
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform, Dimensions, Keyboard } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '@/lib/supabase'
@@ -74,7 +74,7 @@ export default function SitesScreen() {
           characteristics: JSON.stringify(item.characteristics ?? []),
         },
       })
-    } catch (e) {
+    } catch {
       Alert.alert('Error', 'Could not classify this URL. Please try another.')
     } finally {
       setClassifyLoading(false)

@@ -32,7 +32,7 @@ export function useSignTakeSharing() {
       try {
         const uri = await captureRef(cardRef, { format: 'png', quality: 0.9 })
         await Sharing.shareAsync(uri, { mimeType: 'image/png' })
-      } catch (e) {
+      } catch {
         Alert.alert('Error', 'Could not create the share image.')
       } finally {
         setSharing(null)

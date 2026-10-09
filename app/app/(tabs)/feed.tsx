@@ -79,7 +79,7 @@ export default function PortAilsScreen() {
         const result = await generatePortails(profile.primary_zodaic_sign_id, h.content, h.themes)
         await setCached(cacheKey, result)
         setPortails(result)
-      } catch (e) {
+      } catch {
         setError('Could not generate your Webstrology reading. Try again later.')
       }
 
