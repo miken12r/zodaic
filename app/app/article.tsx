@@ -4,7 +4,7 @@ import { ScrollView as GHScrollView } from 'react-native-gesture-handler'
 import { WebView } from 'react-native-webview'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { SIGN_BY_ID, dropThe } from '@/constants/signs'
+import { SIGN_BY_ID, ZODAIC_SIGNS, dropThe } from '@/constants/signs'
 import { PERSONA_BY_SIGN_ID, personaCredit } from '@/constants/personas'
 import { createShare, generateLens, extractArticle } from '@/lib/api'
 import { getOrGenerateSignTake } from '@/lib/signTakes'
@@ -115,6 +115,13 @@ export default function ArticleScreen() {
     takeId && takeHeadline && takeBlurb ? { id: takeId as string, headline: takeHeadline as string, blurb: takeBlurb as string } : null
   )
   const [takeSheetVisible, setTakeSheetVisible] = useState(false)
+  // "Ask another voice": any of the 12 personas can take on this article, not just
+  // the article's own sign. Takes are stored per (article, sign), so other voices'
+  // takes are fetched/generated on demand and cached here for this screen.
+  const [voiceSignId, setVoiceSignId] = useState<number | null>(null)
+  const [otherVoiceTakes, setOtherVoiceTakes] = useState<Record<number, { id: string; headline: string; blurb: string }>>({})
+  const latestVoiceRequest = useRef<number | null>(null)
+  const pendingVoices = useRef(new Set<number>())
   const { presentShareOptions, captureView } = useSignTakeSharing()
 
   // Load sticky reader mode preference on mount
@@ -127,6 +134,34 @@ export default function ArticleScreen() {
   const sign = signId ? SIGN_BY_ID[parseInt(signId)] : null
   const persona = signId ? PERSONA_BY_SIGN_ID[parseInt(signId)] : undefined
   const confidencePct = confidence ? Math.round(parseFloat(confidence) * 100) : null
+
+  // The take sheet shows whichever voice is selected; it opens on the article's own sign.
+  const shownSignId = voiceSignId ?? sign?.id ?? null
+  const shownSign = shownSignId ? SIGN_BY_ID[shownSignId] : null
+  const shownPersona = shownSignId ? PERSONA_BY_SIGN_ID[shownSignId] : undefined
+  const shownTake = shownSignId === sign?.id ? take : shownSignId ? otherVoiceTakes[shownSignId] ?? null : null
+
+  function openTakeSheet() {
+    setVoiceSignId(null)
+    setTakeSheetVisible(true)
+  }
+
+  async function selectVoice(id: number) {
+    setVoiceSignId(id)
+    if (id === sign?.id || otherVoiceTakes[id] || !contentId || pendingVoices.current.has(id)) return
+    latestVoiceRequest.current = id
+    pendingVoices.current.add(id)
+    try {
+      const r = await getOrGenerateSignTake({ content_id: contentId as string, zodaic_sign_id: id })
+      setOtherVoiceTakes((prev) => ({ ...prev, [id]: { id: r.id, headline: r.headline, blurb: r.blurb } }))
+    } catch {
+      Alert.alert('Error', `Couldn't get ${PERSONA_BY_SIGN_ID[id]?.displayName ?? 'that voice'}'s take. Try again.`)
+      // Fall back to the article's own voice, unless the user already moved on.
+      if (latestVoiceRequest.current === id) setVoiceSignId(null)
+    } finally {
+      pendingVoices.current.delete(id)
+    }
+  }
 
   // Start fetching the lens in the background as soon as the screen mounts
   useEffect(() => {
@@ -300,7 +335,7 @@ export default function ArticleScreen() {
               </TouchableOpacity>
             )}
             {take && sign && (
-              <TouchableOpacity style={[styles.lensButton, { borderColor: sign.color }]} onPress={() => setTakeSheetVisible(true)}>
+              <TouchableOpacity style={[styles.lensButton, { borderColor: sign.color }]} onPress={openTakeSheet}>
                 <Text style={styles.lensButtonSymbol}>{persona?.avatar ?? sign.symbol}</Text>
                 <Text style={[styles.lensButtonText, { color: sign.color }]}>{persona?.displayName ?? dropThe(sign.name)}'s Hot Take</Text>
               </TouchableOpacity>
@@ -421,29 +456,56 @@ export default function ArticleScreen() {
         <View style={StyleSheet.absoluteFillObject}>
         <TouchableOpacity style={styles.lensBackdrop} activeOpacity={1} onPress={() => setTakeSheetVisible(false)}>
           <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-            <View style={[styles.lensSheet, { maxHeight: SCREEN_HEIGHT - insets.top - 40 }, sign ? { borderTopColor: sign.color } : {}]}>
+            <View style={[styles.lensSheet, { maxHeight: SCREEN_HEIGHT - insets.top - 40 }, shownSign ? { borderTopColor: shownSign.color } : {}]}>
               <View style={styles.lensSheetHeader}>
-                <Text style={styles.lensSheetSymbol}>{persona?.avatar ?? sign?.symbol}</Text>
+                <Text style={styles.lensSheetSymbol}>{shownPersona?.avatar ?? shownSign?.symbol}</Text>
                 <View style={styles.takeSheetTitleBlock}>
-                  <Text style={[styles.lensSheetTitle, { color: sign?.color ?? '#9b59b6' }]}>
-                    {persona?.displayName ?? (sign ? dropThe(sign.name) : '')}
+                  <Text style={[styles.lensSheetTitle, { color: shownSign?.color ?? '#9b59b6' }]}>
+                    {shownPersona?.displayName ?? (shownSign ? dropThe(shownSign.name) : '')}
                   </Text>
-                  {persona && sign ? <Text style={styles.takeSheetCredit}>{personaCredit(sign)}</Text> : null}
+                  {shownPersona && shownSign ? <Text style={styles.takeSheetCredit}>{personaCredit(shownSign)}</Text> : null}
                 </View>
               </View>
-              <GHScrollView
-                style={[styles.lensScroll, { maxHeight: SCREEN_HEIGHT - insets.top - 300 }]}
-                showsVerticalScrollIndicator
-              >
-                <Text style={styles.lensIntro}>{take.headline}</Text>
-                <Text style={styles.takeSheetBlurb}>{take.blurb}</Text>
+              {!shownTake ? (
+                <View style={styles.lensSpinner}>
+                  <ActivityIndicator color={shownSign?.color ?? '#9b59b6'} />
+                  <Text style={styles.lensSpinnerText}>{shownPersona?.displayName ?? 'This voice'} is reading the article…</Text>
+                </View>
+              ) : (
+                <GHScrollView
+                  style={[styles.lensScroll, { maxHeight: SCREEN_HEIGHT - insets.top - 380 }]}
+                  showsVerticalScrollIndicator
+                >
+                  <Text style={styles.lensIntro}>{shownTake.headline}</Text>
+                  <Text style={styles.takeSheetBlurb}>{shownTake.blurb}</Text>
+                </GHScrollView>
+              )}
+
+              <Text style={styles.voicePickerLabel}>Ask another voice</Text>
+              <GHScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.voicePicker}>
+                {ZODAIC_SIGNS.map((s) => {
+                  const p = PERSONA_BY_SIGN_ID[s.id]
+                  const selected = s.id === shownSignId
+                  return (
+                    <TouchableOpacity
+                      key={s.id}
+                      style={[styles.voiceChip, selected && { borderColor: s.color, backgroundColor: s.color + '22' }]}
+                      onPress={() => selectVoice(s.id)}
+                    >
+                      <Text style={styles.voiceChipAvatar}>{p?.avatar ?? s.symbol}</Text>
+                      <Text style={[styles.voiceChipName, selected && { color: s.color }]}>{p?.displayName ?? dropThe(s.name)}</Text>
+                    </TouchableOpacity>
+                  )
+                })}
               </GHScrollView>
+
               <TouchableOpacity
-                style={[styles.lensDoneButton, { backgroundColor: sign?.color ?? '#9b59b6' }]}
-                onPress={() => presentShareOptions(
-                  { id: take.id, headline: take.headline, body: take.blurb, url: url as string },
-                  sign ?? undefined,
-                  persona
+                style={[styles.lensDoneButton, { backgroundColor: shownSign?.color ?? '#9b59b6' }, !shownTake && styles.lensDoneButtonDisabled]}
+                disabled={!shownTake}
+                onPress={() => shownTake && presentShareOptions(
+                  { id: shownTake.id, headline: shownTake.headline, body: shownTake.blurb, url: url as string },
+                  shownSign ?? undefined,
+                  shownPersona
                 )}
               >
                 <Text style={styles.lensDoneText}>Share</Text>
@@ -533,6 +595,11 @@ const styles = StyleSheet.create({
   lensSheetTitle: { fontSize: 16, fontWeight: '800', flexShrink: 1 },
   takeSheetTitleBlock: { flexShrink: 1 },
   takeSheetCredit: { color: '#888', fontSize: 12, marginTop: 2 },
+  voicePickerLabel: { color: '#888', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginTop: 16, marginBottom: 8 },
+  voicePicker: { gap: 8, paddingBottom: 4 },
+  voiceChip: { alignItems: 'center', width: 64, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: '#2a2a3e' },
+  voiceChipAvatar: { fontSize: 22 },
+  voiceChipName: { color: '#888', fontSize: 11, fontWeight: '600', marginTop: 4 },
   lensSpinner: { alignItems: 'center', paddingVertical: 32, gap: 12 },
   lensSpinnerText: { color: '#555', fontSize: 13 },
   lensScroll: { flexGrow: 0, flexShrink: 1 },
