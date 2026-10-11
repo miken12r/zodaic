@@ -1,5 +1,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
+const GNEWS_CATEGORIES = ['general', 'technology', 'business', 'entertainment', 'science', 'health', 'sports', 'world', 'nation']
+
 const SIGNS = [
   { id: 1, slug: 'catalyst', name: 'The Catalyst', traditional: 'Aries', traits: 'breaking news, startups, viral trends, disruptive ideas, product launches' },
   { id: 2, slug: 'archive', name: 'The Archive', traditional: 'Taurus', traits: 'encyclopedias, reference, documentation, libraries, established institutions' },
@@ -89,9 +91,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const newsApiKey = Deno.env.get('NEWSAPI_KEY')
+    const gnewsKey = Deno.env.get('GNEWS_API_KEY')
     const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY')
-    if (!newsApiKey || !anthropicKey) {
+    if (!gnewsKey || !anthropicKey) {
       return new Response(JSON.stringify({ error: 'Missing API keys' }), { status: 500, headers: CORS_HEADERS })
     }
 
@@ -100,18 +102,23 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // Fetch top headlines from NewsAPI
-    console.log('Fetching news from NewsAPI...')
-    const newsUrl = `https://newsapi.org/v2/top-headlines?language=en&pageSize=50&apiKey=${newsApiKey}`
+    // Fetch top headlines from GNews. Its free plan (non-commercial use) allows
+    // 100 requests/day at 10 articles each with a 12h delay, so each hourly run
+    // makes ONE request and rotates through categories — that keeps all 12 signs
+    // supplied (general headlines alone skew toward a few) and leaves ~76
+    // requests/day of headroom. NewsAPI's free plan forbids production use.
+    const category = GNEWS_CATEGORIES[new Date().getUTCHours() % GNEWS_CATEGORIES.length]
+    console.log(`Fetching GNews top headlines (category: ${category})...`)
+    const newsUrl = `https://gnews.io/api/v4/top-headlines?category=${category}&lang=en&max=10&apikey=${gnewsKey}`
     const newsResponse = await fetch(newsUrl)
     if (!newsResponse.ok) {
       const err = await newsResponse.text()
-      console.error('NewsAPI error:', err)
-      return new Response(JSON.stringify({ error: 'NewsAPI error', detail: err }), { status: 500, headers: CORS_HEADERS })
+      console.error('GNews error:', newsResponse.status, err)
+      return new Response(JSON.stringify({ error: 'GNews error', detail: err }), { status: 500, headers: CORS_HEADERS })
     }
 
     const newsData = await newsResponse.json()
-    const articles = (newsData.articles ?? []).filter((a: any) => a.url && a.title && !a.title.includes('[Removed]'))
+    const articles = (newsData.articles ?? []).filter((a: any) => a.url && a.title)
     console.log(`Fetched ${articles.length} articles`)
 
     // Load existing recent content_items for deduplication
@@ -154,7 +161,7 @@ Deno.serve(async (req) => {
         url: article.url,
         title: article.title,
         description: result.zodaic_description,
-        image_url: article.urlToImage ?? null,
+        image_url: article.image ?? null,
         source: 'news',
         published_at: article.publishedAt ?? new Date().toISOString(),
         zodaic_sign_id: result.zodaic_sign_id,

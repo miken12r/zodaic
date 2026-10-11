@@ -88,6 +88,11 @@ For UI changes, run on device with the custom dev client
   applied one.
 - `fetch-news`'s hourly `pg_cron` schedule exists only on the hosted project,
   not in any migration.
+- `fetch-news` uses GNews's free plan (`GNEWS_API_KEY` secret): non-commercial
+  use only, 100 requests/day, 10 articles/request, 12h delay. It makes one
+  request per hourly run, rotating categories; keep total GNews calls (incl.
+  any search features) under the daily cap. A paid plan is required if ZodAIc
+  ever earns revenue.
 - Builds: `npx eas build --profile production --platform ios` then
   `npx eas submit` (build number auto-increments remotely).
 

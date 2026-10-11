@@ -42,7 +42,7 @@ zodaic/
         ├── generate-portails/       # Compatibility reading across all 12 signs
         ├── generate-lens/           # "Read through [sign] eyes" article summary
         ├── extract-article/         # Readability-based extraction for reader mode
-        ├── fetch-news/              # Hourly news ingestion (NewsAPI + Claude haiku), pg_cron-scheduled
+        ├── fetch-news/              # Hourly news ingestion (GNews free tier + Claude haiku), pg_cron-scheduled
         ├── generate-sign-take/      # On-demand Hot Takes generation (cache-or-generate-then-persist)
         └── generate-sign-takes-batch/ # Batch Hot Takes generation, pg_cron-scheduled every 20 min
 ```
