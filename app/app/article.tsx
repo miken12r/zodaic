@@ -5,7 +5,7 @@ import { WebView } from 'react-native-webview'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SIGN_BY_ID, dropThe } from '@/constants/signs'
-import { PERSONA_BY_SIGN_ID } from '@/constants/personas'
+import { PERSONA_BY_SIGN_ID, personaCredit } from '@/constants/personas'
 import { createShare, generateLens, extractArticle } from '@/lib/api'
 import { getOrGenerateSignTake } from '@/lib/signTakes'
 import { supabase } from '@/lib/supabase'
@@ -424,9 +424,12 @@ export default function ArticleScreen() {
             <View style={[styles.lensSheet, { maxHeight: SCREEN_HEIGHT - insets.top - 40 }, sign ? { borderTopColor: sign.color } : {}]}>
               <View style={styles.lensSheetHeader}>
                 <Text style={styles.lensSheetSymbol}>{persona?.avatar ?? sign?.symbol}</Text>
-                <Text style={[styles.lensSheetTitle, { color: sign?.color ?? '#9b59b6' }]}>
-                  {persona?.displayName ?? (sign ? dropThe(sign.name) : '')}
-                </Text>
+                <View style={styles.takeSheetTitleBlock}>
+                  <Text style={[styles.lensSheetTitle, { color: sign?.color ?? '#9b59b6' }]}>
+                    {persona?.displayName ?? (sign ? dropThe(sign.name) : '')}
+                  </Text>
+                  {persona && sign ? <Text style={styles.takeSheetCredit}>{personaCredit(sign)}</Text> : null}
+                </View>
               </View>
               <GHScrollView
                 style={[styles.lensScroll, { maxHeight: SCREEN_HEIGHT - insets.top - 300 }]}
@@ -528,6 +531,8 @@ const styles = StyleSheet.create({
   lensSheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
   lensSheetSymbol: { fontSize: 28 },
   lensSheetTitle: { fontSize: 16, fontWeight: '800', flexShrink: 1 },
+  takeSheetTitleBlock: { flexShrink: 1 },
+  takeSheetCredit: { color: '#888', fontSize: 12, marginTop: 2 },
   lensSpinner: { alignItems: 'center', paddingVertical: 32, gap: 12 },
   lensSpinnerText: { color: '#555', fontSize: 13 },
   lensScroll: { flexGrow: 0, flexShrink: 1 },

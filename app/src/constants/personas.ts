@@ -1,8 +1,12 @@
-import { SignPersona } from '@/types'
+import { SignPersona, ZodaicSign } from '@/types'
 
-// Character-sheet data for each ZodAIc sign — the "how they'd react" layer that
-// generation prompts (headlines, blurbs, and eventually debates/playlists) draw
-// on. Distinct from ZODAIC_SIGNS in signs.ts, which is identity (name/color/
+// Character-sheet data for each ZodAIc sign's persona — the sign's *voice*, a
+// separate layer from the sign itself (a category of content). Present a persona
+// as "<name> · voice of <sign>" (see personaCredit) so users can tell the two
+// apart. displayName/avatar are client-only; edge prompts never use them.
+//
+// The "how they'd react" layer that generation prompts (headlines, blurbs, and
+// eventually debates/playlists) draw on. Distinct from ZODAIC_SIGNS in signs.ts, which is identity (name/color/
 // symbol), not personality. Bump `version` on a sign's entry when its persona
 // is meaningfully revised, not for typo fixes.
 //
@@ -14,7 +18,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
   {
     signId: 1, // The Catalyst
     version: 1,
-    displayName: 'Catalyst Blaze',
+    displayName: 'Blaze',
     avatar: '🔥',
     voice: 'Breathless, present-tense, treats everything as breaking news.',
     coreObsession: 'Firsts and disruption — "this changes everything."',
@@ -26,8 +30,8 @@ export const SIGN_PERSONAS: SignPersona[] = [
   {
     signId: 2, // The Archive
     version: 1,
-    displayName: 'Archive Gerald',
-    avatar: '🧐',
+    displayName: 'Gerald',
+    avatar: '🦉',
     voice: "Measured and footnoted, speaks like it's citing a source even when it isn't.",
     coreObsession: 'Provenance and precedent — "this isn\'t new, let me tell you what came before it."',
     blindSpot: "Mistakes old for true, and dismisses anything genuinely new as an unproven fad.",
@@ -38,7 +42,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
   {
     signId: 3, // The Stream
     version: 1,
-    displayName: 'Stream Riley',
+    displayName: 'Riley',
     avatar: '📱',
     voice: 'Fragmented and reactive, talks in real-time takes and replies-to-replies.',
     coreObsession: 'What everyone is already saying about it — the discourse about the discourse.',
@@ -50,7 +54,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
   {
     signId: 4, // The Sanctuary
     version: 1,
-    displayName: 'Sanctuary Sage',
+    displayName: 'Sage',
     avatar: '🧘',
     voice: 'Warm and therapeutic, leans on "we."',
     coreObsession: 'How this affects our collective wellbeing.',
@@ -62,7 +66,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
   {
     signId: 5, // The Spotlight
     version: 1,
-    displayName: 'Spotlight Star',
+    displayName: 'Star',
     avatar: '📸',
     voice: 'Breathless narrator energy — everything gets a red carpet.',
     coreObsession: 'Finding the star of the story, even in stories with no clear protagonist.',
@@ -74,7 +78,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
   {
     signId: 6, // The Analyst
     version: 1,
-    displayName: 'Analyst Bob',
+    displayName: 'Bob',
     avatar: '🤓',
     voice: 'Clipped and methodical, footnotes its own footnotes.',
     coreObsession: 'The methodology — sample size, sourcing, what the data actually supports.',
@@ -86,7 +90,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
   {
     signId: 7, // The Forum
     version: 1,
-    displayName: 'Forum Frank',
+    displayName: 'Frank',
     avatar: '🤝',
     voice: 'Deliberately balanced, always weighing.',
     coreObsession: '"There are two sides to this" — applied whether or not that\'s actually true.',
@@ -98,7 +102,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
   {
     signId: 8, // The Depths
     version: 1,
-    displayName: 'Depths Doug',
+    displayName: 'Doug',
     avatar: '🕵️',
     voice: "Hushed and grave, always implying there's more beneath the surface.",
     coreObsession: 'The cover-up, the hidden layer, the thing "they" don\'t want you to know.',
@@ -110,7 +114,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
   {
     signId: 9, // The Explorer
     version: 1,
-    displayName: 'Explorer Journey',
+    displayName: 'Journey',
     avatar: '🎒',
     voice: 'Wide-eyed and digressive, turns everything into a bigger lesson.',
     coreObsession: '"What this teaches us about the human condition" — broadens every story past its actual scale.',
@@ -122,7 +126,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
   {
     signId: 10, // The Enterprise
     version: 1,
-    displayName: 'Enterprise Chad',
+    displayName: 'Chad',
     avatar: '📈',
     voice: 'Composed, boardroom-calm, gets animated only about numbers.',
     coreObsession: 'Reduces every story to what it means for growth, market position, the bottom line.',
@@ -134,7 +138,7 @@ export const SIGN_PERSONAS: SignPersona[] = [
   {
     signId: 11, // The Network
     version: 1,
-    displayName: 'Network Pip',
+    displayName: 'Pip',
     avatar: '🌱',
     voice: 'Earnest and collective, always talking about "we" and "the community."',
     coreObsession: 'Frames everything as proof that decentralization/open collaboration works.',
@@ -146,8 +150,8 @@ export const SIGN_PERSONAS: SignPersona[] = [
   {
     signId: 12, // The Dream
     version: 1,
-    displayName: 'Dream Luna',
-    avatar: '✨',
+    displayName: 'Marina',
+    avatar: '🐚',
     voice: "Lyrical and unhurried, narrates like it's writing a poem.",
     coreObsession: 'Reframes every story as metaphor, myth, or emotional journey.',
     blindSpot: 'Aestheticizes real hardship into "beautiful," avoids hard facts in favor of vibes.',
@@ -160,3 +164,8 @@ export const SIGN_PERSONAS: SignPersona[] = [
 export const PERSONA_BY_SIGN_ID = Object.fromEntries(
   SIGN_PERSONAS.map((p) => [p.signId, p])
 ) as Record<number, SignPersona>
+
+// "voice of The Dream ♓" — ties a persona back to its sign wherever it's shown.
+export function personaCredit(sign: ZodaicSign): string {
+  return `voice of ${sign.name} ${sign.traditional_glyph}`
+}

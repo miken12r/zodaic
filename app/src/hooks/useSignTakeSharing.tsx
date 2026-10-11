@@ -6,6 +6,7 @@ import { captureRef } from 'react-native-view-shot'
 import { createShare } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
 import { ZodaicSign, SignPersona } from '@/types'
+import { personaCredit } from '@/constants/personas'
 
 export interface ShareableContent {
   id?: string
@@ -55,7 +56,7 @@ export function useSignTakeSharing() {
 
   async function copyText(content: ShareableContent, sign?: ZodaicSign, persona?: SignPersona) {
     const summaryBlock = content.summary ? `${content.summary}\n\n⸻\n\n` : ''
-    const text = `${content.headline}\n\n${summaryBlock}${content.body}\n\n${content.url}\n\n— ${persona?.displayName ?? sign?.name}, via ZodAIc`
+    const text = `${content.headline}\n\n${summaryBlock}${content.body}\n\n${content.url}\n\n— ${persona && sign ? `${persona.displayName}, ${personaCredit(sign)}` : sign?.name}, via ZodAIc`
     await Clipboard.setStringAsync(text)
     Alert.alert('Copied', 'Paste it anywhere — Messages, notes, wherever.')
   }
@@ -85,6 +86,9 @@ export function useSignTakeSharing() {
         <Text style={[styles.shareCardPersona, { color: sharing.sign?.color ?? '#9b59b6' }]}>
           {sharing.persona?.displayName ?? sharing.sign?.name}
         </Text>
+        {sharing.persona && sharing.sign ? (
+          <Text style={styles.shareCardCredit}>{personaCredit(sharing.sign)}</Text>
+        ) : null}
         <Text style={styles.shareCardHeadline}>{sharing.content.headline}</Text>
         {sharing.content.summary ? (
           <Text style={styles.shareCardSummary}>{sharing.content.summary}</Text>
@@ -109,7 +113,8 @@ const styles = StyleSheet.create({
     width: 340, backgroundColor: '#1a1a2e', borderRadius: 20, borderWidth: 3, padding: 24,
   },
   shareCardAvatar: { fontSize: 40, marginBottom: 8 },
-  shareCardPersona: { fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 },
+  shareCardPersona: { fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  shareCardCredit: { color: '#888', fontSize: 12, marginBottom: 14 },
   shareCardHeadline: { color: '#fff', fontSize: 21, fontWeight: '800', lineHeight: 28, marginBottom: 12 },
   shareCardSummary: {
     color: '#999', fontSize: 13, lineHeight: 20, fontStyle: 'italic',

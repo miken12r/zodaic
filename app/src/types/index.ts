@@ -17,6 +17,10 @@ export interface ZodaicSign {
   name: string
   slug: ZodaicSignSlug
   traditional_analog: string
+  // Glyph and one-line "why this sign" for the traditional analog, so users can
+  // see how a ZodAIc sign maps to its zodiac ancestor.
+  traditional_glyph: string
+  traditional_reason: string
   tagline: string
   description: string
   characteristics: string[]

@@ -1,6 +1,7 @@
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SIGN_BY_ID } from '@/constants/signs'
+import { PERSONA_BY_SIGN_ID } from '@/constants/personas'
 
 interface Props {
   signId: number | null
@@ -20,6 +21,7 @@ export default function SignDetailModal({ signId, onClose, inline }: Props) {
   const { height: windowHeight } = useWindowDimensions()
   const insets = useSafeAreaInsets()
   const sign = signId ? SIGN_BY_ID[signId] : null
+  const persona = signId ? PERSONA_BY_SIGN_ID[signId] : undefined
 
   if (!sign) return null
 
@@ -33,7 +35,7 @@ export default function SignDetailModal({ signId, onClose, inline }: Props) {
                 <Text style={styles.symbol}>{sign.symbol}</Text>
                 <View style={styles.headerText}>
                   <Text style={[styles.name, { color: sign.color }]}>{sign.name}</Text>
-                  <Text style={styles.analog}>Digital {sign.traditional_analog}</Text>
+                  <Text style={styles.analog}>Digital {sign.traditional_analog} {sign.traditional_glyph}</Text>
                   <View style={styles.elementRow}>
                     <Text style={styles.element}>
                       {ELEMENT_SYMBOLS[sign.element]} {sign.element.charAt(0).toUpperCase() + sign.element.slice(1)}
@@ -51,6 +53,10 @@ export default function SignDetailModal({ signId, onClose, inline }: Props) {
               {/* Description */}
               <Text style={styles.description}>{sign.description}</Text>
 
+              {/* Why this zodiac sign */}
+              <Text style={styles.sectionLabel}>Why {sign.traditional_analog}?</Text>
+              <Text style={styles.description}>{sign.traditional_reason}</Text>
+
               {/* Characteristics */}
               <Text style={styles.sectionLabel}>Characteristics</Text>
               <View style={styles.traits}>
@@ -60,6 +66,22 @@ export default function SignDetailModal({ signId, onClose, inline }: Props) {
                   </View>
                 ))}
               </View>
+
+              {/* The persona is the sign's voice — a separate layer from the sign */}
+              {persona && (
+                <>
+                  <Text style={[styles.sectionLabel, styles.voiceLabel]}>Meet the voice</Text>
+                  <View style={styles.voiceRow}>
+                    <Text style={styles.voiceAvatar}>{persona.avatar}</Text>
+                    <View style={styles.headerText}>
+                      <Text style={[styles.voiceName, { color: sign.color }]}>{persona.displayName}</Text>
+                      <Text style={styles.voiceText}>
+                        Gives {sign.name} a personality in Hot Takes and sign views. {persona.voice}
+                      </Text>
+                    </View>
+                  </View>
+                </>
+              )}
             </ScrollView>
           </View>
         </TouchableOpacity>
@@ -96,4 +118,9 @@ const styles = StyleSheet.create({
   traits: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   trait: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4 },
   traitText: { fontSize: 12, fontWeight: '600' },
+  voiceLabel: { marginTop: 24 },
+  voiceRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  voiceAvatar: { fontSize: 32, marginRight: 12 },
+  voiceName: { fontSize: 16, fontWeight: '800', marginBottom: 4 },
+  voiceText: { color: '#bbb', fontSize: 14, lineHeight: 21 },
 })

@@ -38,7 +38,7 @@ export default function ShareCard({ share, onPress, onPressSign, onPressUser, sh
         {sign && (
           <TouchableOpacity onPress={() => onPressSign?.(sign.id)}>
             <Text style={[styles.shareSign, { color: sign.color }]}>
-              {isTake ? (persona?.avatar ?? sign.symbol) : sign.symbol} {isTake ? (persona?.displayName ?? sign.name) : sign.name} ›
+              {isTake && persona ? `${persona.avatar} ${persona.displayName} · ${sign.name}` : `${sign.symbol} ${sign.name}`} ›
             </Text>
           </TouchableOpacity>
         )}

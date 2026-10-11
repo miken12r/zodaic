@@ -182,14 +182,14 @@ Scan the printed QR code with your device's camera — it opens in the installed
 |------|---------------|-------------|
 | ⚡ The Catalyst | Breaking news, startups, viral trends | Aries |
 | 📚 The Archive | Encyclopedias, reference, documentation | Taurus |
-| 🌊 The Stream | Social media, messaging, commentary | Gemini |
+| 💬 The Stream | Social media, messaging, commentary | Gemini |
 | 🌙 The Sanctuary | Wellness, community, mental health | Cancer |
 | ⭐ The Spotlight | Entertainment, celebrity, streaming | Leo |
 | 🔬 The Analyst | Data, research, analytics, technical | Virgo |
 | ⚖️ The Forum | Debate, reviews, op-eds, marketplaces | Libra |
-| 🔭 The Depths | Investigative journalism, security research | Scorpio |
+| 🔦 The Depths | Investigative journalism, security research | Scorpio |
 | 🧭 The Explorer | Education, travel, philosophy, courses | Sagittarius |
-| 🏛️ The Enterprise | Business, finance, B2B, productivity | Capricorn |
+| 💼 The Enterprise | Business, finance, B2B, productivity | Capricorn |
 | 🕸️ The Network | Open source, tech, decentralized | Aquarius |
 | 🌌 The Dream | Art, music, film, spirituality | Pisces |
 
