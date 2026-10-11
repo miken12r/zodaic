@@ -85,7 +85,10 @@ For UI changes, run on device with the custom dev client
 
 - Edge function: `supabase functions deploy <name>` (project is already linked).
 - Migrations: add a new dated file in `supabase/migrations/`; never edit an
-  applied one.
+  applied one. **Never run `supabase db push`** — the remote migration history
+  is empty (all migrations were applied by hand), so it would re-run the whole
+  schema. Apply a single new file with
+  `supabase db query --linked -f supabase/migrations/<file>.sql`.
 - `fetch-news`'s hourly `pg_cron` schedule exists only on the hosted project,
   not in any migration.
 - `fetch-news` uses GNews's free plan (`GNEWS_API_KEY` secret): non-commercial

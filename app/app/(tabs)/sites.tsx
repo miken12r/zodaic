@@ -3,8 +3,9 @@ import { View, Text, FlatList, StyleSheet, TouchableOpacity, ScrollView, Activit
 import { useFocusEffect, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '@/lib/supabase'
-import { fetchSites, followSite, unfollowSite, classifyContent, Site } from '@/lib/api'
-import { SIGN_BY_ID, ZODAIC_SIGNS } from '@/constants/signs'
+import { fetchSites, followSite, unfollowSite, classifyContent, askPersona, AskError, AskResult, Site } from '@/lib/api'
+import { SIGN_BY_ID, ZODAIC_SIGNS, dropThe } from '@/constants/signs'
+import { PERSONA_BY_SIGN_ID, personaCredit } from '@/constants/personas'
 import SignDetailModal from '@/components/SignDetailModal'
 
 const SCREEN_HEIGHT = Dimensions.get('window').height
@@ -20,12 +21,21 @@ export default function SitesScreen() {
   const [classifyModalVisible, setClassifyModalVisible] = useState(false)
   const [classifyUrl, setClassifyUrl] = useState('')
   const [classifyLoading, setClassifyLoading] = useState(false)
+  // "Ask a voice" mode (default) vs. "Paste a link" mode in the + modal.
+  const [addMode, setAddMode] = useState<'ask' | 'link'>('ask')
+  const [askSignId, setAskSignId] = useState(1)
+  const [askQuestion, setAskQuestion] = useState('')
+  const [askLoading, setAskLoading] = useState(false)
+  const [askResult, setAskResult] = useState<AskResult | null>(null)
+  const [openingUrl, setOpeningUrl] = useState<string | null>(null)
   const router = useRouter()
 
   useFocusEffect(useCallback(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return
       setUserId(user.id)
+      supabase.from('profiles').select('primary_zodaic_sign_id').eq('id', user.id).single()
+        .then(({ data: p }) => { if (p?.primary_zodaic_sign_id) setAskSignId(p.primary_zodaic_sign_id) })
       const data = await fetchSites(user.id, filterSignId ?? undefined)
       setSites(data)
       setLoading(false)
@@ -53,27 +63,32 @@ export default function SitesScreen() {
 
   // A classified URL opens straight into the article screen — the same view as
   // the News feed, with the {Sign} View / Hot Take sheets and Share to Feed /
-  // Share Link — rather than a separate result card inside this modal.
+  // Share Link. `voice` (from Ask) opens that persona's Hot Take right away.
+  async function openClassified(target: string, voice?: number) {
+    const item = await classifyContent(target)
+    setClassifyModalVisible(false)
+    router.push({
+      pathname: '/article',
+      params: {
+        url: item.url,
+        contentId: item.id,
+        signId: String(item.zodaic_sign_id),
+        title: item.title ?? '',
+        description: item.description ?? '',
+        confidence: String(item.classification_confidence),
+        characteristics: JSON.stringify(item.characteristics ?? []),
+        ...(voice ? { voice: String(voice) } : {}),
+      },
+    })
+  }
+
   async function handleClassify() {
     const target = classifyUrl.trim()
     if (!target || classifyLoading) return
     Keyboard.dismiss()
     setClassifyLoading(true)
     try {
-      const item = await classifyContent(target)
-      setClassifyModalVisible(false)
-      router.push({
-        pathname: '/article',
-        params: {
-          url: item.url,
-          contentId: item.id,
-          signId: String(item.zodaic_sign_id),
-          title: item.title ?? '',
-          description: item.description ?? '',
-          confidence: String(item.classification_confidence),
-          characteristics: JSON.stringify(item.characteristics ?? []),
-        },
-      })
+      await openClassified(target)
     } catch {
       Alert.alert('Error', 'Could not classify this URL. Please try another.')
     } finally {
@@ -81,10 +96,43 @@ export default function SitesScreen() {
     }
   }
 
+  async function handleAsk() {
+    const question = askQuestion.trim()
+    if (question.length < 3 || askLoading) return
+    Keyboard.dismiss()
+    setAskLoading(true)
+    setAskResult(null)
+    try {
+      setAskResult(await askPersona(question, askSignId))
+    } catch (e) {
+      Alert.alert('Ask a voice', e instanceof AskError ? e.message : 'Could not search right now. Try again.')
+    } finally {
+      setAskLoading(false)
+    }
+  }
+
+  async function handlePickArticle(url: string) {
+    if (openingUrl) return
+    setOpeningUrl(url)
+    try {
+      await openClassified(url, askSignId)
+    } catch {
+      Alert.alert('Error', 'Could not open this article. Try another one.')
+    } finally {
+      setOpeningUrl(null)
+    }
+  }
+
   function handleOpenClassify() {
     setClassifyUrl('')
+    setAskQuestion('')
+    setAskResult(null)
     setClassifyModalVisible(true)
   }
+
+  const askSign = SIGN_BY_ID[askSignId]
+  const askPersonaInfo = PERSONA_BY_SIGN_ID[askSignId]
+  const askName = askPersonaInfo?.displayName ?? dropThe(askSign.name)
 
   const displayed = showFollowing ? sites.filter((s) => s.is_following) : sites
 
@@ -196,38 +244,132 @@ export default function SitesScreen() {
           <TouchableOpacity activeOpacity={1} onPress={() => {}}>
             <View style={[styles.modalSheet, { maxHeight: SCREEN_HEIGHT - insets.top - 40 }]}>
               <View style={styles.modalHeaderRow}>
-                <Text style={styles.modalTitle}>Classify a Site</Text>
+                <Text style={styles.modalTitle}>{addMode === 'ask' ? 'Ask a Voice' : 'Classify a Link'}</Text>
                 <TouchableOpacity onPress={() => setClassifyModalVisible(false)}>
                   <Text style={styles.closeButtonText}>✕</Text>
                 </TouchableOpacity>
               </View>
 
               <ScrollView contentContainerStyle={styles.modalScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                <Text style={styles.subtitle}>Enter any URL to reveal its ZodAIc sign.</Text>
-                <View style={styles.inputRow}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="https://..."
-                    placeholderTextColor="#555"
-                    value={classifyUrl}
-                    onChangeText={setClassifyUrl}
-                    autoCapitalize="none"
-                    keyboardType="url"
-                    returnKeyType="go"
-                    onSubmitEditing={handleClassify}
-                  />
-                  <TouchableOpacity style={styles.button} onPress={handleClassify} disabled={classifyLoading}>
-                    <Text style={styles.buttonText}>↗</Text>
+                <View style={styles.toggleRow}>
+                  <TouchableOpacity style={[styles.toggleButton, addMode === 'ask' && styles.toggleButtonActive]} onPress={() => setAddMode('ask')}>
+                    <Text style={[styles.toggleText, addMode === 'ask' && styles.toggleTextActive]}>Ask a voice</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.toggleButton, addMode === 'link' && styles.toggleButtonActive]} onPress={() => setAddMode('link')}>
+                    <Text style={[styles.toggleText, addMode === 'link' && styles.toggleTextActive]}>Paste a link</Text>
                   </TouchableOpacity>
                 </View>
 
-                {classifyLoading && (
-                  <View style={styles.loadingCard}>
-                    <ActivityIndicator color="#9b59b6" size="large" />
-                    <Text style={styles.loadingText}>Reading the digital stars...</Text>
-                  </View>
-                )}
+                {addMode === 'ask' ? (
+                  <>
+                    <Text style={styles.subtitle}>Pick a voice and a news topic. They'll find recent stories and weigh in.</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.voicePicker} keyboardShouldPersistTaps="handled">
+                      {ZODAIC_SIGNS.map((s) => {
+                        const p = PERSONA_BY_SIGN_ID[s.id]
+                        const selected = s.id === askSignId
+                        return (
+                          <TouchableOpacity
+                            key={s.id}
+                            style={[styles.voiceChip, selected && { borderColor: s.color, backgroundColor: s.color + '22' }]}
+                            onPress={() => { setAskSignId(s.id); setAskResult(null) }}
+                          >
+                            <Text style={styles.voiceChipAvatar}>{p?.avatar ?? s.symbol}</Text>
+                            <Text style={[styles.voiceChipName, selected && { color: s.color }]}>{p?.displayName ?? dropThe(s.name)}</Text>
+                          </TouchableOpacity>
+                        )
+                      })}
+                    </ScrollView>
+                    <Text style={styles.askCredit}>{askName} · {personaCredit(askSign)}</Text>
+                    <View style={styles.inputRow}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder={`Ask ${askName} about…`}
+                        placeholderTextColor="#555"
+                        value={askQuestion}
+                        onChangeText={setAskQuestion}
+                        maxLength={200}
+                        returnKeyType="search"
+                        onSubmitEditing={handleAsk}
+                      />
+                      <TouchableOpacity style={[styles.button, { backgroundColor: askSign.color }]} onPress={handleAsk} disabled={askLoading}>
+                        <Text style={styles.buttonText}>↗</Text>
+                      </TouchableOpacity>
+                    </View>
 
+                    {askLoading && (
+                      <View style={styles.loadingCard}>
+                        <ActivityIndicator color={askSign.color} size="large" />
+                        <Text style={[styles.loadingText, { color: askSign.color }]}>{askName} is looking into it…</Text>
+                      </View>
+                    )}
+
+                    {askResult && askResult.tone === 'declined' && (
+                      <View style={styles.askNotice}>
+                        <Text style={styles.askNoticeTitle}>{askName} won't weigh in on this one.</Text>
+                        {askResult.reason ? <Text style={styles.askNoticeText}>{askResult.reason}</Text> : null}
+                      </View>
+                    )}
+
+                    {askResult && askResult.tone !== 'declined' && (
+                      <>
+                        {askResult.tone === 'sensitive' && (
+                          <View style={styles.askNotice}>
+                            <Text style={styles.askNoticeTitle}>Sensitive topic — {askName} will keep it respectful.</Text>
+                          </View>
+                        )}
+                        {askResult.articles.length === 0 ? (
+                          <Text style={styles.askEmpty}>No recent articles found. Try different words.</Text>
+                        ) : (
+                          <Text style={styles.askPickLabel}>Pick a story for {askName}</Text>
+                        )}
+                        {askResult.articles.map((a) => (
+                          <TouchableOpacity
+                            key={a.url}
+                            style={[styles.askResult, { borderColor: askSign.color + '55' }]}
+                            onPress={() => handlePickArticle(a.url)}
+                            disabled={!!openingUrl}
+                          >
+                            <Text style={styles.askResultTitle} numberOfLines={3}>{a.title}</Text>
+                            <View style={styles.askResultMetaRow}>
+                              <Text style={styles.askResultMeta} numberOfLines={1}>
+                                {a.source}{a.published && a.published !== 'unknown' ? ` · ${a.published}` : ''}
+                              </Text>
+                              {openingUrl === a.url && <ActivityIndicator size="small" color={askSign.color} />}
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                        <Text style={styles.askRemaining}>{askResult.remaining} questions left today</Text>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.subtitle}>Enter any URL to reveal its ZodAIc sign.</Text>
+                    <View style={styles.inputRow}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="https://..."
+                        placeholderTextColor="#555"
+                        value={classifyUrl}
+                        onChangeText={setClassifyUrl}
+                        autoCapitalize="none"
+                        keyboardType="url"
+                        returnKeyType="go"
+                        onSubmitEditing={handleClassify}
+                      />
+                      <TouchableOpacity style={styles.button} onPress={handleClassify} disabled={classifyLoading}>
+                        <Text style={styles.buttonText}>↗</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {classifyLoading && (
+                      <View style={styles.loadingCard}>
+                        <ActivityIndicator color="#9b59b6" size="large" />
+                        <Text style={styles.loadingText}>Reading the digital stars...</Text>
+                      </View>
+                    )}
+                  </>
+                )}
               </ScrollView>
             </View>
           </TouchableOpacity>
@@ -319,4 +461,19 @@ const styles = StyleSheet.create({
   buttonText: { color: '#fff', fontSize: 22, fontWeight: '700' },
   loadingCard: { alignItems: 'center', padding: 40, gap: 16 },
   loadingText: { color: '#9b59b6', fontSize: 15 },
+  voicePicker: { gap: 8, paddingBottom: 4 },
+  voiceChip: { alignItems: 'center', width: 64, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: '#2a2a3e' },
+  voiceChipAvatar: { fontSize: 22 },
+  voiceChipName: { color: '#888', fontSize: 11, fontWeight: '600', marginTop: 4 },
+  askCredit: { color: '#888', fontSize: 12, marginTop: 8, marginBottom: 12 },
+  askNotice: { backgroundColor: '#2a1a3e', borderRadius: 12, padding: 12, marginBottom: 12 },
+  askNoticeTitle: { color: '#ddd', fontSize: 14, fontWeight: '700' },
+  askNoticeText: { color: '#aaa', fontSize: 13, marginTop: 4, lineHeight: 19 },
+  askEmpty: { color: '#888', fontSize: 14, textAlign: 'center', paddingVertical: 20 },
+  askPickLabel: { color: '#888', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
+  askResult: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8 },
+  askResultTitle: { color: '#fff', fontSize: 15, fontWeight: '600', lineHeight: 21 },
+  askResultMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, gap: 8 },
+  askResultMeta: { color: '#888', fontSize: 12, flexShrink: 1 },
+  askRemaining: { color: '#555', fontSize: 12, textAlign: 'center', marginTop: 8 },
 })

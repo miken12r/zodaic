@@ -38,6 +38,30 @@ export async function classifyContent(url: string): Promise<ContentItem> {
   return data as ContentItem
 }
 
+// "Ask <persona> about <topic>": finds recent news articles for the question.
+// tone is 'sensitive' for tragedies (voices stay respectful) or 'declined'.
+export type AskTone = 'normal' | 'sensitive' | 'declined'
+export interface AskArticle { title: string; url: string; source: string; published: string }
+export interface AskResult { tone: AskTone; reason: string; articles: AskArticle[]; remaining: number }
+
+export class AskError extends Error {
+  constructor(public code: 'daily_limit' | 'busy' | 'failed', message: string) { super(message) }
+}
+
+export async function askPersona(question: string, zodaicSignId: number): Promise<AskResult> {
+  const { data, error } = await supabase.functions.invoke('ask-persona', {
+    body: { question, zodaic_sign_id: zodaicSignId },
+  })
+  if (error) {
+    // Non-2xx responses carry a JSON body with an error code (e.g. daily_limit).
+    const body = await (error as { context?: Response }).context?.json?.().catch(() => null)
+    if (body?.error === 'daily_limit') throw new AskError('daily_limit', `You've reached today's limit of ${body.limit} questions. Try again tomorrow.`)
+    if (body?.error === 'busy') throw new AskError('busy', 'The voices are swamped today. Try again tomorrow.')
+    throw new AskError('failed', body?.error ?? 'Could not search right now. Try again.')
+  }
+  return data as AskResult
+}
+
 // Generate a horoscope for a sign via Supabase Edge Function
 export async function generateHoroscope(
   zodaicSignId: number,

@@ -56,6 +56,8 @@ Known characteristics: ${(meta.characteristics ?? []).join(', ')}
 
 Write ONE sensationalized, lampoon-style headline and a 1-2 sentence blurb about this article, entirely in this character's voice and worldview — as if this character's own tabloid wrote it. Exaggerate its obsession and blind spot for comic effect. Do not name the character. Do not wrap the headline in quotation marks. Keep the headline under 100 characters.
 
+Exception — real harm: if the article centers on death, serious injury, violence, a disaster with casualties, abuse, suicide, terminal illness, or similar tragedy, do NOT lampoon it, sensationalize it, or joke about anyone harmed. Keep the character's voice and angle, but write a sincere, respectful headline and blurb; the obsession may shape what it notices, never mock the people affected.
+
 Respond with valid JSON only:
 { "headline": "...", "blurb": "..." }`
 

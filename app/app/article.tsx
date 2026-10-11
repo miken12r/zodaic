@@ -86,7 +86,7 @@ function parseReaderContent(article: { title: string; byline: string; site_name:
 }
 
 export default function ArticleScreen() {
-  const { url, contentId, signId, title, description, confidence, characteristics, takeId, takeHeadline, takeBlurb } = useLocalSearchParams<{
+  const { url, contentId, signId, title, description, confidence, characteristics, takeId, takeHeadline, takeBlurb, voice } = useLocalSearchParams<{
     url: string
     contentId: string
     signId: string
@@ -97,6 +97,8 @@ export default function ArticleScreen() {
     takeId: string
     takeHeadline: string
     takeBlurb: string
+    // Persona to open the Hot Take sheet with on arrival (from Sites' Ask a voice).
+    voice: string
   }>()
   const router = useRouter()
   const insets = useSafeAreaInsets()
@@ -145,6 +147,16 @@ export default function ArticleScreen() {
     setVoiceSignId(null)
     setTakeSheetVisible(true)
   }
+
+  // Arriving from "Ask a voice": open the Hot Take sheet on the asked persona.
+  useEffect(() => {
+    const id = voice ? parseInt(voice as string) : NaN
+    if (!contentId || !Number.isInteger(id)) return
+    selectVoice(id)
+    setTakeSheetVisible(true)
+    // Keyed on contentId: runs once per article, like the take/lens loaders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentId])
 
   async function selectVoice(id: number) {
     setVoiceSignId(id)
@@ -452,7 +464,7 @@ export default function ArticleScreen() {
         </View>
       )}
 
-      {takeSheetVisible && take && (
+      {takeSheetVisible && (take || voiceSignId) && (
         <View style={StyleSheet.absoluteFillObject}>
         <TouchableOpacity style={styles.lensBackdrop} activeOpacity={1} onPress={() => setTakeSheetVisible(false)}>
           <TouchableOpacity activeOpacity={1} onPress={() => {}}>
