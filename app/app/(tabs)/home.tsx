@@ -404,6 +404,31 @@ export default function HomeScreen() {
                 {filterSignIds.size === 0 && <Text style={styles.modalCheck}>✓</Text>}
               </TouchableOpacity>
 
+              {/* Your own sign, pinned and unscored (see OWN_SIGN_SCORE). */}
+              {primarySign && (
+                <TouchableOpacity
+                  style={[styles.modalRow, filterSignIds.has(primarySign.id) && styles.modalRowSelected]}
+                  onPress={() => {
+                    setFilterSignIds((prev) => {
+                      const next = new Set(prev)
+                      if (next.has(primarySign.id)) next.delete(primarySign.id)
+                      else next.add(primarySign.id)
+                      return next
+                    })
+                  }}
+                >
+                  <Text style={styles.modalSymbol}>{primarySign.symbol}</Text>
+                  <Text style={[styles.modalSignName, { color: primarySign.color }]}>{primarySign.name.replace('The ', '')}</Text>
+                  <View style={styles.modalScoreRow}>
+                    <Text style={styles.modalYourSign}>your sign</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setSelectedSignId(primarySign.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={styles.modalInfo}>ⓘ</Text>
+                  </TouchableOpacity>
+                  {filterSignIds.has(primarySign.id) && <Text style={styles.modalCheck}>✓</Text>}
+                </TouchableOpacity>
+              )}
+
               {[...ZODAIC_SIGNS]
                 .filter((sign) => sign.id !== primarySignId)
                 .sort((a, b) => {
@@ -531,6 +556,7 @@ const styles = StyleSheet.create({
   modalBar: { height: 4, borderRadius: 2 },
   modalScore: { fontSize: 12, fontWeight: '800', width: 26, textAlign: 'right' },
   modalCheck: { color: '#9b59b6', fontSize: 16, fontWeight: '800' },
+  modalYourSign: { color: '#888', fontSize: 12, fontStyle: 'italic' },
   modalInfo: { color: '#444', fontSize: 16, marginLeft: 4 },
   swipeActions: { flexDirection: 'row', marginBottom: 10 },
   swipeRead: { backgroundColor: '#2ecc71', width: 80, justifyContent: 'center', alignItems: 'center', borderRadius: 0 },

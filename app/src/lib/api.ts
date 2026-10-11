@@ -183,6 +183,12 @@ function elementalScore(userSignId: number, itemSignId: number): number {
   return 35
 }
 
+// The user's own sign is shown everywhere (filters, Webstrology) but ranked at a
+// fixed "Good" level rather than boosted to the top: ZodAIc is about seeing other
+// perspectives, and ranking your own sign first would turn the feed into an echo
+// chamber. Webstrology readings only score the other 11 signs.
+export const OWN_SIGN_SCORE = 70
+
 export type FeedItem =
   | { type: 'news'; item: ContentItem; score: number }
   | {
@@ -335,7 +341,9 @@ export async function fetchHomeFeed(
   }
 
   const getScore = (signId: number) =>
-    compatibilityScores?.[signId] ?? elementalScore(primarySignId, signId)
+    signId === primarySignId
+      ? OWN_SIGN_SCORE
+      : compatibilityScores?.[signId] ?? elementalScore(primarySignId, signId)
 
   const newsFeed: FeedItem[] = newsItems.map((item) => ({
     type: 'news',

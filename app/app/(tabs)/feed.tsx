@@ -182,6 +182,15 @@ export default function PortAilsScreen() {
 
       <Text style={styles.sectionTitle}>Full Compatibility Chart</Text>
       <View style={styles.chartCard}>
+        {/* Your own sign, pinned and unscored — the reading rates the other 11. */}
+        {primarySign && (
+          <TouchableOpacity style={[styles.chartRow, styles.chartOwnRow]} onPress={() => handleSignTap(primarySign.id)} onLongPress={() => setSelectedSignId(primarySign.id)}>
+            <Text style={styles.chartRank}>✦</Text>
+            <Text style={styles.chartSymbol}>{primarySign.symbol}</Text>
+            <Text style={[styles.chartName, { color: primarySign.color }]}>{primarySign.name}</Text>
+            <Text style={styles.chartOwnLabel}>your sign</Text>
+          </TouchableOpacity>
+        )}
         {all.map((c, i) => {
           const sign = SIGN_BY_ID[c.sign_id]
           if (!sign) return null
@@ -233,6 +242,8 @@ const styles = StyleSheet.create({
   exampleSite: { color: '#555', fontSize: 11, marginTop: 6 },
   chartCard: { backgroundColor: '#1a1a2e', borderRadius: 16, padding: 16 },
   chartRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 },
+  chartOwnRow: { paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#2a2a3e' },
+  chartOwnLabel: { flex: 1, color: '#888', fontSize: 12, fontStyle: 'italic' },
   chartRank: { color: '#555', fontSize: 12, width: 18, textAlign: 'right' },
   chartSymbol: { fontSize: 16, width: 24 },
   chartName: { color: '#ccc', fontSize: 12, width: 90 },
