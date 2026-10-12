@@ -1,5 +1,6 @@
 import type { SupabaseClient } from 'jsr:@supabase/supabase-js@2'
 import { PERSONA_BY_SIGN_ID } from './personas.ts'
+import { buildSignTakePrompt } from './signTakePrompt.ts'
 
 // Shared generation core for Sign Takes — both generate-sign-take (on-demand) and
 // generate-sign-takes-batch (cron) call this rather than each duplicating the Claude
@@ -43,23 +44,7 @@ export async function getOrGenerateSignTake(
     throw new Error(`No persona for zodaic_sign_id ${meta.zodaic_sign_id}`)
   }
 
-  const prompt = `You are writing as a character with this voice: ${persona.voice}
-This character is obsessed with: ${persona.coreObsession}
-Its blind spot (lean into this for comic effect — do not correct it): ${persona.blindSpot}
-Its reaction temperature: ${persona.reactionTemperature}
-Reference phrases in its voice (tone reference only — do not reuse verbatim): ${persona.catchphrases.join(' / ')}
-
-A real article:
-Title: ${meta.title}
-Description: ${meta.description ?? 'N/A'}
-Known characteristics: ${(meta.characteristics ?? []).join(', ')}
-
-Write ONE sensationalized, lampoon-style headline and a 1-2 sentence blurb about this article, entirely in this character's voice and worldview — as if this character's own tabloid wrote it. Exaggerate its obsession and blind spot for comic effect. Do not name the character. Do not wrap the headline in quotation marks. Keep the headline under 100 characters.
-
-Exception — real harm: if the article centers on death, serious injury, violence, a disaster with casualties, abuse, suicide, terminal illness, or similar tragedy, do NOT lampoon it, sensationalize it, or joke about anyone harmed. Keep the character's voice and angle, but write a sincere, respectful headline and blurb; the obsession may shape what it notices, never mock the people affected.
-
-Respond with valid JSON only:
-{ "headline": "...", "blurb": "..." }`
+  const prompt = buildSignTakePrompt(persona, meta)
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
