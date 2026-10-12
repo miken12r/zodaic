@@ -4,12 +4,13 @@ import { ScrollView as GHScrollView } from 'react-native-gesture-handler'
 import { WebView } from 'react-native-webview'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { SIGN_BY_ID, ZODAIC_SIGNS, dropThe } from '@/constants/signs'
+import { SIGN_BY_ID, dropThe } from '@/constants/signs'
 import { PERSONA_BY_SIGN_ID, personaCredit } from '@/constants/personas'
 import { createShare, generateLens, extractArticle } from '@/lib/api'
 import { getOrGenerateSignTake } from '@/lib/signTakes'
 import { supabase } from '@/lib/supabase'
 import SignDetailModal from '@/components/SignDetailModal'
+import VoicePicker from '@/components/VoicePicker'
 import { loadFeedSettings, saveFeedSettings } from '@/components/FeedSettings'
 import { useSignTakeSharing } from '@/hooks/useSignTakeSharing'
 
@@ -124,6 +125,7 @@ export default function ArticleScreen() {
   const [otherVoiceTakes, setOtherVoiceTakes] = useState<Record<number, { id: string; headline: string; blurb: string }>>({})
   const latestVoiceRequest = useRef<number | null>(null)
   const pendingVoices = useRef(new Set<number>())
+  const [userSignId, setUserSignId] = useState<number | null>(null)
   const { presentShareOptions, captureView } = useSignTakeSharing()
 
   // Load sticky reader mode preference on mount
@@ -147,6 +149,15 @@ export default function ArticleScreen() {
     setVoiceSignId(null)
     setTakeSheetVisible(true)
   }
+
+  // The user's own sign, so the voice picker can mark it and list it early.
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase.from('profiles').select('primary_zodaic_sign_id').eq('id', user.id).single()
+        .then(({ data }) => setUserSignId(data?.primary_zodaic_sign_id ?? null))
+    })
+  }, [])
 
   // Arriving from "Ask a voice": open the Hot Take sheet on the asked persona.
   useEffect(() => {
@@ -494,22 +505,13 @@ export default function ArticleScreen() {
               )}
 
               <Text style={styles.voicePickerLabel}>Ask another voice</Text>
-              <GHScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.voicePicker}>
-                {ZODAIC_SIGNS.map((s) => {
-                  const p = PERSONA_BY_SIGN_ID[s.id]
-                  const selected = s.id === shownSignId
-                  return (
-                    <TouchableOpacity
-                      key={s.id}
-                      style={[styles.voiceChip, selected && { borderColor: s.color, backgroundColor: s.color + '22' }]}
-                      onPress={() => selectVoice(s.id)}
-                    >
-                      <Text style={styles.voiceChipAvatar}>{p?.avatar ?? s.symbol}</Text>
-                      <Text style={[styles.voiceChipName, selected && { color: s.color }]}>{p?.displayName ?? dropThe(s.name)}</Text>
-                    </TouchableOpacity>
-                  )
-                })}
-              </GHScrollView>
+              <VoicePicker
+                selectedId={shownSignId}
+                onSelect={selectVoice}
+                userSignId={userSignId}
+                leadingIds={sign ? [sign.id] : []}
+                ScrollComponent={GHScrollView}
+              />
 
               <TouchableOpacity
                 style={[styles.lensDoneButton, { backgroundColor: shownSign?.color ?? '#9b59b6' }, !shownTake && styles.lensDoneButtonDisabled]}
@@ -608,10 +610,6 @@ const styles = StyleSheet.create({
   takeSheetTitleBlock: { flexShrink: 1 },
   takeSheetCredit: { color: '#888', fontSize: 12, marginTop: 2 },
   voicePickerLabel: { color: '#888', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginTop: 16, marginBottom: 8 },
-  voicePicker: { gap: 8, paddingBottom: 4 },
-  voiceChip: { alignItems: 'center', width: 64, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: '#2a2a3e' },
-  voiceChipAvatar: { fontSize: 22 },
-  voiceChipName: { color: '#888', fontSize: 11, fontWeight: '600', marginTop: 4 },
   lensSpinner: { alignItems: 'center', paddingVertical: 32, gap: 12 },
   lensSpinnerText: { color: '#555', fontSize: 13 },
   lensScroll: { flexGrow: 0, flexShrink: 1 },

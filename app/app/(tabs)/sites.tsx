@@ -7,6 +7,7 @@ import { fetchSites, followSite, unfollowSite, classifyContent, askPersona, AskE
 import { SIGN_BY_ID, ZODAIC_SIGNS, dropThe } from '@/constants/signs'
 import { PERSONA_BY_SIGN_ID, personaCredit } from '@/constants/personas'
 import SignDetailModal from '@/components/SignDetailModal'
+import VoicePicker from '@/components/VoicePicker'
 
 const SCREEN_HEIGHT = Dimensions.get('window').height
 
@@ -24,6 +25,7 @@ export default function SitesScreen() {
   // "Ask a voice" mode (default) vs. "Paste a link" mode in the + modal.
   const [addMode, setAddMode] = useState<'ask' | 'link'>('ask')
   const [askSignId, setAskSignId] = useState(1)
+  const [userSignId, setUserSignId] = useState<number | null>(null)
   const [askQuestion, setAskQuestion] = useState('')
   const [askLoading, setAskLoading] = useState(false)
   const [askResult, setAskResult] = useState<AskResult | null>(null)
@@ -35,7 +37,11 @@ export default function SitesScreen() {
       if (!user) return
       setUserId(user.id)
       supabase.from('profiles').select('primary_zodaic_sign_id').eq('id', user.id).single()
-        .then(({ data: p }) => { if (p?.primary_zodaic_sign_id) setAskSignId(p.primary_zodaic_sign_id) })
+        .then(({ data: p }) => {
+          if (!p?.primary_zodaic_sign_id) return
+          setUserSignId(p.primary_zodaic_sign_id)
+          setAskSignId(p.primary_zodaic_sign_id)
+        })
       const data = await fetchSites(user.id, filterSignId ?? undefined)
       setSites(data)
       setLoading(false)
@@ -263,22 +269,11 @@ export default function SitesScreen() {
                 {addMode === 'ask' ? (
                   <>
                     <Text style={styles.subtitle}>Pick a voice and a news topic. They'll find recent stories and weigh in.</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.voicePicker} keyboardShouldPersistTaps="handled">
-                      {ZODAIC_SIGNS.map((s) => {
-                        const p = PERSONA_BY_SIGN_ID[s.id]
-                        const selected = s.id === askSignId
-                        return (
-                          <TouchableOpacity
-                            key={s.id}
-                            style={[styles.voiceChip, selected && { borderColor: s.color, backgroundColor: s.color + '22' }]}
-                            onPress={() => { setAskSignId(s.id); setAskResult(null) }}
-                          >
-                            <Text style={styles.voiceChipAvatar}>{p?.avatar ?? s.symbol}</Text>
-                            <Text style={[styles.voiceChipName, selected && { color: s.color }]}>{p?.displayName ?? dropThe(s.name)}</Text>
-                          </TouchableOpacity>
-                        )
-                      })}
-                    </ScrollView>
+                    <VoicePicker
+                      selectedId={askSignId}
+                      onSelect={(id) => { setAskSignId(id); setAskResult(null) }}
+                      userSignId={userSignId}
+                    />
                     <Text style={styles.askCredit}>{askName} · {personaCredit(askSign)}</Text>
                     <View style={styles.inputRow}>
                       <TextInput
@@ -461,10 +456,6 @@ const styles = StyleSheet.create({
   buttonText: { color: '#fff', fontSize: 22, fontWeight: '700' },
   loadingCard: { alignItems: 'center', padding: 40, gap: 16 },
   loadingText: { color: '#9b59b6', fontSize: 15 },
-  voicePicker: { gap: 8, paddingBottom: 4 },
-  voiceChip: { alignItems: 'center', width: 64, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: '#2a2a3e' },
-  voiceChipAvatar: { fontSize: 22 },
-  voiceChipName: { color: '#888', fontSize: 11, fontWeight: '600', marginTop: 4 },
   askCredit: { color: '#888', fontSize: 12, marginTop: 8, marginBottom: 12 },
   askNotice: { backgroundColor: '#2a1a3e', borderRadius: 12, padding: 12, marginBottom: 12 },
   askNoticeTitle: { color: '#ddd', fontSize: 14, fontWeight: '700' },
