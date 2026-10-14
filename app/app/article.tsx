@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Dimensions, ActionSheetIOS, Share } from 'react-native'
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Dimensions, ActionSheetIOS, Share, Platform } from 'react-native'
 import { ScrollView as GHScrollView } from 'react-native-gesture-handler'
 import { WebView } from 'react-native-webview'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -290,7 +290,15 @@ export default function ArticleScreen() {
 
   async function handleShareLink() {
     try {
-      await Share.share({ url: url as string, message: title ? `${title}\n${url}` : (url as string) })
+      // iOS shares `url` and `message` as separate items, and most targets
+      // (Messages, Notes, Mail) paste both — so the link must not also be in the
+      // message there, or it appears twice. Android ignores `url`, so it needs the
+      // link in the message text.
+      await Share.share(
+        Platform.OS === 'ios'
+          ? { url: url as string, message: (title as string) || undefined }
+          : { message: title ? `${title}\n${url}` : (url as string) }
+      )
     } catch {}
   }
 
