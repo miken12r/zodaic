@@ -7,30 +7,67 @@ export default function SignInScreen() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in')
+  const [confirmEmail, setConfirmEmail] = useState('')
   const emailRef = useRef('')
   const passwordRef = useRef('')
+  const confirmEmailRef = useRef('')
 
+  // Email isn't verified (Supabase auto-confirms sign-ups), so a mistyped address
+  // becomes a real, empty account the moment it's submitted — this happened
+  // repeatedly with the App Review demo email. Sign-up therefore asks for the
+  // email twice and shows it back before creating anything, and a failed sign-in
+  // points at typos rather than at "Sign up".
   async function handleAuth() {
     Keyboard.dismiss()
-    const currentEmail = emailRef.current
+    const currentEmail = emailRef.current.trim()
     const currentPassword = passwordRef.current
     if (!currentEmail || !currentPassword) {
       Alert.alert('Missing fields', 'Please enter your email and password.')
       return
     }
+    if (mode === 'sign-in') {
+      await run(() => supabase.auth.signInWithPassword({ email: currentEmail, password: currentPassword }))
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(currentEmail)) {
+      Alert.alert('Check your email', "That doesn't look like a complete email address.")
+      return
+    }
+    if (currentEmail.toLowerCase() !== confirmEmailRef.current.trim().toLowerCase()) {
+      Alert.alert('Emails don\'t match', 'Please type the same email address in both fields.')
+      return
+    }
+    Alert.alert(
+      'Create your account?',
+      `Your account will use:\n\n${currentEmail}\n\nMake sure it's spelled right — it's how you'll sign in.`,
+      [
+        { text: 'Edit', style: 'cancel' },
+        { text: 'Create', onPress: () => run(() => supabase.auth.signUp({ email: currentEmail, password: currentPassword })) },
+      ]
+    )
+  }
+
+  async function run(request: () => Promise<{ error: { message: string; code?: string } | null }>) {
     setLoading(true)
     try {
-      const { error } =
-        mode === 'sign-in'
-          ? await supabase.auth.signInWithPassword({ email: currentEmail, password: currentPassword })
-          : await supabase.auth.signUp({ email: currentEmail, password: currentPassword })
-
-      if (error) Alert.alert('Error', error.message)
+      const { error } = await request()
+      if (!error) return
+      if (mode === 'sign-in' && (error.code === 'invalid_credentials' || /invalid login credentials/i.test(error.message))) {
+        Alert.alert('Couldn\'t sign in', 'No account matches that email and password. Check the email for typos and try again.')
+      } else {
+        Alert.alert('Error', error.message)
+      }
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'Something went wrong. Check your connection.')
     } finally {
       setLoading(false)
     }
+  }
+
+  function switchMode() {
+    setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')
+    setConfirmEmail('')
+    confirmEmailRef.current = ''
   }
 
   return (
@@ -46,8 +83,25 @@ export default function SignInScreen() {
         value={email}
         onChangeText={(t) => { setEmail(t); emailRef.current = t }}
         autoCapitalize="none"
+        autoCorrect={false}
         keyboardType="email-address"
+        textContentType={mode === 'sign-in' ? 'username' : 'emailAddress'}
       />
+      {mode === 'sign-up' && (
+        <TextInput
+          style={styles.input}
+          placeholder="Confirm email"
+          placeholderTextColor="#666"
+          value={confirmEmail}
+          onChangeText={(t) => { setConfirmEmail(t); confirmEmailRef.current = t }}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          // Must be typed, not autofilled, or it can't catch a typo.
+          textContentType="none"
+          autoComplete="off"
+        />
+      )}
       <TextInput
         style={styles.input}
         placeholder="Password"
@@ -61,7 +115,7 @@ export default function SignInScreen() {
         <Text style={styles.buttonText}>{loading ? '...' : mode === 'sign-in' ? 'Sign In' : 'Create Account'}</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}>
+      <TouchableOpacity onPress={switchMode}>
         <Text style={styles.switchText}>
           {mode === 'sign-in' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
         </Text>
