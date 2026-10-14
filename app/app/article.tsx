@@ -334,12 +334,16 @@ export default function ArticleScreen() {
         )}
 
         <TouchableOpacity
-          style={[styles.readerButton, readerMode && { backgroundColor: sign?.color ?? '#9b59b6' }]}
+          style={[styles.readerButton, readerMode && styles.readerButtonActive]}
           onPress={toggleReaderMode}
           disabled={readerLoading}
+          accessibilityRole="button"
+          accessibilityLabel={readerMode ? 'Turn off reader mode' : 'Turn on reader mode'}
         >
-          <Text style={[styles.readerButtonText, readerMode && styles.readerButtonTextActive]}>
-            {readerLoading ? '…' : 'Aa'}
+          {/* Open book = reader mode (Edge/Chrome convention). "Aa" read as text size;
+              in Safari it opens a page-options menu rather than toggling Reader. */}
+          <Text style={readerLoading ? [styles.readerButtonText, readerMode && styles.readerButtonTextActive] : styles.readerButtonIcon}>
+            {readerLoading ? '…' : '📖'}
           </Text>
         </TouchableOpacity>
 
@@ -570,6 +574,9 @@ const styles = StyleSheet.create({
   },
   readerButtonText: { color: '#555', fontSize: 13, fontWeight: '800' },
   readerButtonTextActive: { color: '#fff' },
+  // Same purple as the Share button whatever the sign, so "on" always looks the same.
+  readerButtonActive: { backgroundColor: '#9b59b6', borderColor: '#9b59b6' },
+  readerButtonIcon: { fontSize: 17 },
   shareButton: {
     backgroundColor: '#9b59b6', borderRadius: 20,
     width: 36, height: 36, justifyContent: 'center', alignItems: 'center',
