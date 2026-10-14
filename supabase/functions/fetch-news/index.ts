@@ -2,6 +2,30 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const GNEWS_CATEGORIES = ['general', 'technology', 'business', 'entertainment', 'science', 'health', 'sports', 'world', 'nation']
 
+// Press releases are marketing copy, not news — personas have nothing real to
+// react to. Catch the wire services themselves and news sites that republish
+// wire copy under a press-release section (e.g. manilatimes.net/.../tmt-newswire/
+// globenewswire/..., business-standard.com/content/press-releases-ani/...).
+const PRESS_RELEASE_HOSTS = [
+  'einpresswire.com', 'globenewswire.com', 'prnewswire.com', 'businesswire.com',
+  'accesswire.com', 'newsfilecorp.com', 'prweb.com', 'newswire.com', 'openpr.com',
+  'issuewire.com', 'prlog.org', '24-7pressrelease.com', 'presswire.com',
+]
+const PRESS_RELEASE_PATH = /\/(?:[\w-]*newswire|press-?releases?(?:-[\w]+)?|globenewswire|pr-newswire|business-?wire|accesswire|einpresswire)(?:\/|$)/i
+const PRESS_RELEASE_SOURCE = /newswire|press ?release|presswire|business wire|accesswire/i
+
+function isPressRelease(article: { url: string; source?: { name?: string } }): boolean {
+  try {
+    const { hostname, pathname } = new URL(article.url)
+    const host = hostname.replace(/^www\./, '')
+    if (PRESS_RELEASE_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return true
+    if (PRESS_RELEASE_PATH.test(pathname)) return true
+  } catch {
+    return false
+  }
+  return PRESS_RELEASE_SOURCE.test(article.source?.name ?? '')
+}
+
 const SIGNS = [
   { id: 1, slug: 'catalyst', name: 'The Catalyst', traditional: 'Aries', traits: 'breaking news, startups, viral trends, disruptive ideas, product launches' },
   { id: 2, slug: 'archive', name: 'The Archive', traditional: 'Taurus', traits: 'encyclopedias, reference, documentation, libraries, established institutions' },
@@ -118,8 +142,9 @@ Deno.serve(async (req) => {
     }
 
     const newsData = await newsResponse.json()
-    const articles = (newsData.articles ?? []).filter((a: any) => a.url && a.title)
-    console.log(`Fetched ${articles.length} articles`)
+    const fetched = (newsData.articles ?? []).filter((a: any) => a.url && a.title)
+    const articles = fetched.filter((a: any) => !isPressRelease(a))
+    console.log(`Fetched ${fetched.length} articles (${fetched.length - articles.length} press releases skipped)`)
 
     // Load existing recent content_items for deduplication
     const { data: existingItems } = await supabase
