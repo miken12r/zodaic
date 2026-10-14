@@ -130,7 +130,7 @@ export async function fetchFeed(userId: string): Promise<Share[]> {
   const userIds = [...new Set(data.map((s) => s.user_id))]
   const { data: profiles } = await supabase
     .from('public_profiles')
-    .select('id, username, display_name')
+    .select('id, username, display_name, primary_zodaic_sign_id')
     .in('id', userIds)
 
   const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p]))
@@ -193,7 +193,7 @@ export type FeedItem =
   | { type: 'news'; item: ContentItem; score: number }
   | {
       type: 'share'
-      share: ResolvedShare & { profile?: { id: string; username: string; display_name: string | null } | null }
+      share: ResolvedShare & { profile?: { id: string; username: string; display_name: string | null; primary_zodaic_sign_id?: number | null } | null }
       score: number
     }
 
@@ -315,7 +315,7 @@ export async function fetchHomeFeed(
   ])
 
   const followingIds = (followRows ?? []).map((f) => f.following_id)
-  let shareItems: (ResolvedShare & { profile?: { id: string; username: string; display_name: string | null } | null })[] = []
+  let shareItems: (ResolvedShare & { profile?: { id: string; username: string; display_name: string | null; primary_zodaic_sign_id?: number | null } | null })[] = []
 
   if (followingIds.length > 0) {
     const { data: shares } = await supabase
@@ -332,7 +332,7 @@ export async function fetchHomeFeed(
       const profileIds = [...new Set(shares.map((s) => s.user_id))]
       const { data: profiles } = await supabase
         .from('public_profiles')
-        .select('id, username, display_name')
+        .select('id, username, display_name, primary_zodaic_sign_id')
         .in('id', profileIds)
 
       const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p]))
