@@ -129,7 +129,7 @@ export async function fetchFeed(userId: string): Promise<Share[]> {
 
   const userIds = [...new Set(data.map((s) => s.user_id))]
   const { data: profiles } = await supabase
-    .from('profiles')
+    .from('public_profiles')
     .select('id, username, display_name')
     .in('id', userIds)
 
@@ -331,7 +331,7 @@ export async function fetchHomeFeed(
 
       const profileIds = [...new Set(shares.map((s) => s.user_id))]
       const { data: profiles } = await supabase
-        .from('profiles')
+        .from('public_profiles')
         .select('id, username, display_name')
         .in('id', profileIds)
 
@@ -405,13 +405,17 @@ export async function fetchFollowCounts(userId: string): Promise<{ followers: nu
   return { followers: followers ?? 0, following: following ?? 0 }
 }
 
+// Other users' profiles are read from public_profiles (public fields of completed
+// profiles only — birth dates stay private); only a user's own row is read from
+// profiles directly.
+
 // Fetch a single user's profile with follow status relative to currentUserId
 export async function fetchUserProfile(
   targetUserId: string,
   currentUserId: string
 ): Promise<{ id: string; username: string; display_name: string | null; primary_zodaic_sign_id: number | null; isFollowing: boolean; followers: number; following: number } | null> {
   const [{ data: profile }, { data: follows }, followCounts] = await Promise.all([
-    supabase.from('profiles').select('id, username, display_name, primary_zodaic_sign_id').eq('id', targetUserId).single(),
+    supabase.from('public_profiles').select('id, username, display_name, primary_zodaic_sign_id').eq('id', targetUserId).maybeSingle(),
     supabase.from('follows').select('following_id').eq('follower_id', currentUserId).eq('following_id', targetUserId),
     fetchFollowCounts(targetUserId),
   ])
@@ -422,7 +426,7 @@ export async function fetchUserProfile(
 // Fetch all users except current user, with follow status
 export async function fetchUsers(currentUserId: string): Promise<{ id: string; username: string; display_name: string | null; primary_zodaic_sign_id: number | null; isFollowing: boolean }[]> {
   const [{ data: profiles }, { data: follows }] = await Promise.all([
-    supabase.from('profiles').select('id, username, display_name, primary_zodaic_sign_id').neq('id', currentUserId),
+    supabase.from('public_profiles').select('id, username, display_name, primary_zodaic_sign_id').neq('id', currentUserId),
     supabase.from('follows').select('following_id').eq('follower_id', currentUserId),
   ])
 

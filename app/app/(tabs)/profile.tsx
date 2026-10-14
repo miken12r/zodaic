@@ -5,43 +5,10 @@ import { Profile, UserSignAffinity, Horoscope } from '@/types'
 import { fetchUserAffinities, fetchHoroscope, generateHoroscope, fetchFollowCounts, deleteAccount } from '@/lib/api'
 import { SIGN_BY_ID } from '@/constants/signs'
 import FeedSettings from '@/components/FeedSettings'
-
-const isUS = Intl.DateTimeFormat().resolvedOptions().locale.startsWith('en-US')
-const DATE_FORMAT = isUS ? 'MM/DD/YYYY' : 'DD/MM/YYYY'
-
-function toDisplayDate(iso: string): string {
-  if (!iso) return ''
-  const [y, m, d] = iso.split('-')
-  if (!y || !m || !d) return iso
-  return isUS ? `${m}/${d}/${y}` : `${d}/${m}/${y}`
-}
-
-function toISODate(display: string): string {
-  const parts = display.split('/')
-  if (parts.length !== 3) return display
-  const [a, b, y] = parts
-  const [m, d] = isUS ? [a, b] : [b, a]
-  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
-}
-
-function getZodaicSignId(birthDate: string): number | null {
-  const date = new Date(birthDate)
-  if (isNaN(date.getTime())) return null
-  const m = date.getUTCMonth() + 1
-  const d = date.getUTCDate()
-  if ((m === 3 && d >= 21) || (m === 4 && d <= 19)) return 1
-  if ((m === 4 && d >= 20) || (m === 5 && d <= 20)) return 2
-  if ((m === 5 && d >= 21) || (m === 6 && d <= 20)) return 3
-  if ((m === 6 && d >= 21) || (m === 7 && d <= 22)) return 4
-  if ((m === 7 && d >= 23) || (m === 8 && d <= 22)) return 5
-  if ((m === 8 && d >= 23) || (m === 9 && d <= 22)) return 6
-  if ((m === 9 && d >= 23) || (m === 10 && d <= 22)) return 7
-  if ((m === 10 && d >= 23) || (m === 11 && d <= 21)) return 8
-  if ((m === 11 && d >= 22) || (m === 12 && d <= 21)) return 9
-  if ((m === 12 && d >= 22) || (m === 1 && d <= 19)) return 10
-  if ((m === 1 && d >= 20) || (m === 2 && d <= 18)) return 11
-  return 12
-}
+import {
+  DATE_FORMAT, toDisplayDate, toISODate, getZodaicSignId,
+  validateUsername, validateDisplayName, validateBirthDate, profileSaveErrorMessage,
+} from '@/lib/profileFields'
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -50,6 +17,8 @@ export default function ProfileScreen() {
   const [birthDate, setBirthDate] = useState('')
   const [saving, setSaving] = useState(false)
   const [usernameError, setUsernameError] = useState('')
+  const [displayNameError, setDisplayNameError] = useState('')
+  const [birthDateError, setBirthDateError] = useState('')
   const [affinities, setAffinities] = useState<UserSignAffinity[]>([])
   const [horoscope, setHoroscope] = useState<Horoscope | null>(null)
   const [followCounts, setFollowCounts] = useState<{ followers: number; following: number } | null>(null)
@@ -78,39 +47,37 @@ export default function ProfileScreen() {
     })
   }, [])
 
-  function validateUsername(value: string): string {
-    if (!value.trim()) return 'Username is required.'
-    if (/\s/.test(value)) return 'Username cannot contain spaces.'
-    if (!/^[a-zA-Z0-9_]+$/.test(value)) return 'Only letters, numbers, and underscores allowed.'
-    if (value.length < 3) return 'Username must be at least 3 characters.'
-    if (value.length > 30) return 'Username must be 30 characters or fewer.'
-    return ''
-  }
-
   function handleUsernameChange(value: string) {
     setUsername(value)
     setUsernameError(validateUsername(value))
   }
 
   async function saveProfile() {
+    // All three fields are required (see profileFields.ts).
     const err = validateUsername(username)
-    if (err) { setUsernameError(err); return }
+    const nameErr = validateDisplayName(displayName)
+    const dateErr = validateBirthDate(birthDate)
+    setUsernameError(err)
+    setDisplayNameError(nameErr)
+    setBirthDateError(dateErr)
+    if (err || nameErr || dateErr) return
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setSaving(false); return }
 
-    const isoDate = birthDate ? toISODate(birthDate) : null
-    const primary_zodaic_sign_id = isoDate ? getZodaicSignId(isoDate) : null
+    const isoDate = toISODate(birthDate.trim())
+    const primary_zodaic_sign_id = getZodaicSignId(isoDate)
     const { error } = await supabase.from('profiles').upsert({
       id: user.id,
       username,
-      display_name: displayName || null,
-      birth_date: isoDate || null,
+      display_name: displayName.trim(),
+      birth_date: isoDate,
       ...(primary_zodaic_sign_id ? { primary_zodaic_sign_id } : {}),
     })
 
     if (error) {
-      Alert.alert('Error', error.message)
+      if (error.code === '23505') setUsernameError(profileSaveErrorMessage(error))
+      else Alert.alert('Error', profileSaveErrorMessage(error))
     } else {
       const { data: updated } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       if (updated) {
@@ -196,21 +163,25 @@ export default function ProfileScreen() {
 
         <Text style={styles.label}>Display Name</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, displayNameError ? styles.inputError : {}]}
           value={displayName}
-          onChangeText={setDisplayName}
+          onChangeText={(v) => { setDisplayName(v); if (displayNameError) setDisplayNameError(validateDisplayName(v)) }}
           placeholder="Your Name"
           placeholderTextColor="#555"
+          maxLength={50}
         />
+        {displayNameError ? <Text style={styles.fieldError}>{displayNameError}</Text> : null}
 
         <Text style={styles.label}>Birth Date</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, birthDateError ? styles.inputError : {}]}
           value={birthDate}
-          onChangeText={setBirthDate}
+          onChangeText={(v) => { setBirthDate(v); if (birthDateError) setBirthDateError(validateBirthDate(v)) }}
           placeholder={DATE_FORMAT}
           placeholderTextColor="#555"
+          keyboardType="numbers-and-punctuation"
         />
+        {birthDateError ? <Text style={styles.fieldError}>{birthDateError}</Text> : null}
         <Text style={styles.hint}>Enter as {DATE_FORMAT}. Used to calculate your digital zodiac sign.</Text>
 
         <TouchableOpacity style={[styles.saveButton, (saving || !!usernameError) && styles.saveButtonDisabled]} onPress={saveProfile} disabled={saving || !!usernameError}>
