@@ -89,6 +89,14 @@ For UI changes, run on device with the custom dev client
   is empty (all migrations were applied by hand), so it would re-run the whole
   schema. Apply a single new file with
   `supabase db query --linked -f supabase/migrations/<file>.sql`.
+- New tables need explicit grants in the migration that creates them: since
+  2026-10-30 Supabase no longer auto-grants Data API access to new `public`
+  tables, so without one the client gets "permission denied". Match the read-only
+  client model: `grant select ... to authenticated;` and `grant all ... to
+  service_role;`. Add `anon` or write grants only when a table needs them (e.g.
+  rows users edit directly). RLS still applies on top. Tables created before then
+  kept their old grants but have none in their migrations, so rebuilding from
+  migrations (new project, `db reset`) would need a backfill.
 - `fetch-news`'s hourly `pg_cron` schedule exists only on the hosted project,
   not in any migration.
 - `fetch-news` uses GNews's free plan (`GNEWS_API_KEY` secret): non-commercial
