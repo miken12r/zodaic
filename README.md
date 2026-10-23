@@ -1,8 +1,50 @@
 # ZodAIc
 
-Find your place in the digital cosmos.
+**Read the news through twelve AI voices.**
 
-ZodAIc classifies websites and online content into 12 digital zodiac signs, generates AI-powered horoscopes for each sign, and helps users understand their affinity to digital content based on their own profile.
+We all read the same headlines. We don't all read them the same way. ZodAIc sorts the
+day's stories into 12 "digital signs," a playful take on the zodiac, and each sign has
+its own AI voice with its own personality, obsessions, and blind spots. Pick a story
+and see how a dreamer, an analyst, or a hype machine would read it, or ask any voice to
+weigh in on a topic you choose.
+
+The zodiac is just the starting point. The goal is a tool for understanding perspectives:
+how other people might see the same thing. Other frameworks, such as Myers-Briggs, are
+planned.
+
+<p align="center">
+  <img src="docs/images/same-headline-three-voices.png" width="420"
+       alt="One story about Japan's mission to the moons of Mars, with headlines from three AI voices: Journey, Blaze, and Marina">
+</p>
+
+## Join the beta
+
+ZodAIc is in a free beta on iPhone. **[Join on TestFlight](https://testflight.apple.com/join/NPck2h3Y)**
+(you'll need Apple's free TestFlight app; the link walks you through it).
+
+Feedback is welcome: take a screenshot in the app and tap **Share Beta Feedback**, or
+[open an issue](https://github.com/miken12r/zodaic/issues).
+
+## Under the hood
+
+Built solo as a hands-on exploration of applied AI, with production-minded safeguards.
+
+- **AI pipeline.** Hourly news ingestion; Claude classifies each story into a sign, and
+  each sign's voice writes its take, with the model matched to the task (Haiku for
+  high-volume takes, Sonnet for classification). "Ask a voice" uses Claude's web search
+  tool to find fresh stories on any topic.
+- **AI guardrails.** The model decides the tone first, so stories about real harm get a
+  respectful take instead of a lampoon. Facts must match the article, and only the voice's
+  reaction is exaggerated. "Ask a voice" screens requests and declines inappropriate ones,
+  with per-user and global daily limits.
+- **Security and privacy.** Row-level security on every table. The app only reads, and
+  server-side functions do all writes with keys kept off the device. Other users'
+  profiles are served through a view that exposes only public fields, so birth dates are
+  never visible to anyone else.
+- **Cost-conscious.** Free tiers wherever possible (Supabase, GNews, Expo) plus
+  pay-as-you-go Claude usage.
+- **Stack.** TypeScript throughout: Expo / React Native, Supabase (Postgres, RLS, Deno
+  Edge Functions, pg_cron), the Anthropic Claude API, and EAS Build + TestFlight.
 
 ---
 
@@ -13,35 +55,40 @@ zodaic/
 ├── app/                             # Expo React Native app (iOS first)
 │   ├── app/                         # Expo Router screens
 │   │   ├── index.tsx                # Redirects to sign-in
-│   │   ├── article.tsx              # Article reader (WebView + native reader mode + sign "lens")
+│   │   ├── article.tsx              # Article reader (WebView + reader mode + "Ask another voice")
+│   │   ├── setup.tsx                # First-run profile setup (username, display name, birth date)
 │   │   ├── (auth)/sign-in.tsx       # Auth screen
 │   │   └── (tabs)/                  # Main tab screens
-│   │       ├── home.tsx             # Feed ranked by sign compatibility
-│   │       ├── discover.tsx         # Classify any URL + find people
-│   │       ├── sites.tsx            # Browse/follow curated sites by sign
-│   │       ├── feed.tsx             # PortAils — AI-generated compatibility reading
-│   │       ├── takes.tsx            # Hot Takes — persona-voiced headline/blurb feed
+│   │       ├── home.tsx             # News: feed ranked by sign compatibility
+│   │       ├── takes.tsx            # Takes: persona-voiced headline/blurb feed
+│   │       ├── sites.tsx            # Sites: "Ask a voice" about a topic, or classify a pasted link
+│   │       ├── feed.tsx             # Webstrology: AI-generated compatibility reading
+│   │       ├── discover.tsx         # Networking: find people, shared stories
 │   │       └── profile.tsx          # Birth date → sign, follow counts, feed settings
 │   ├── assets/                      # icon.png, splash.png, adaptive-icon.png — placeholders, swap for real branding
 │   └── src/
-│       ├── components/              # SignDetailModal, UserProfileSheet, FeedSettings
+│       ├── components/              # ShareCard, SignDetailModal, UserProfileSheet, VoicePicker, FeedSettings
 │       ├── constants/
 │       │   ├── signs.ts             # The 12 ZodAIc signs (identity: name/color/symbol)
 │       │   └── personas.ts          # Character-sheet data (voice/displayName/avatar) each sign's Hot Takes draw on
 │       ├── lib/
 │       │   ├── supabase.ts          # Supabase client
 │       │   ├── api.ts               # API calls
+│       │   ├── profileFields.ts     # Shared profile validation and date helpers
+│       │   ├── profileStatus.ts     # Profile-completion signal for the setup redirect
 │       │   └── signTakes.ts         # Hot Takes data layer — kept separate from api.ts, see Key Decisions
 │       └── types/index.ts           # TypeScript types
 └── supabase/
     ├── migrations/                  # Database schema (run in order — see Setup)
     └── functions/
-        ├── _shared/                 # personas.ts (Deno mirror of the client's) + generateSignTake.ts (shared Claude-call core)
+        ├── _shared/                 # personas.ts (Deno mirror of the client's), generateSignTake.ts + signTakePrompt.ts (shared take generation)
+        ├── ask-persona/             # "Ask a voice": finds recent stories on a topic via Claude web search (rate-limited)
         ├── classify-content/        # Claude-powered URL → sign classifier
         ├── generate-horoscope/      # Claude-powered weekly/monthly horoscope generator
         ├── generate-portails/       # Compatibility reading across all 12 signs
         ├── generate-lens/           # "Read through [sign] eyes" article summary
         ├── extract-article/         # Readability-based extraction for reader mode
+        ├── delete-account/          # Deletes the signed-in user's account
         ├── fetch-news/              # Hourly news ingestion (GNews free tier + Claude haiku), pg_cron-scheduled
         ├── generate-sign-take/      # On-demand Hot Takes generation (cache-or-generate-then-persist)
         └── generate-sign-takes-batch/ # Batch Hot Takes generation, pg_cron-scheduled every 20 min
@@ -71,15 +118,15 @@ npm install -g expo-cli
 ### 3. Set up Supabase
 
 1. Go to [supabase.com](https://supabase.com) and create a new project
-2. In the SQL editor, run each file in `supabase/migrations/` **in order**:
-   - `20260812_initial_schema.sql`
-   - `20260820_lens_text.sql`
-   - `20260826_sites.sql`
-   - `20260908_sign_takes.sql`
-   - `20260908_sign_takes_cron.sql` — before running this one, store the service role
-     key in Vault (`select vault.create_secret('<your-service-role-key>', 'service_role_key');`)
+2. In the SQL editor, run every file in `supabase/migrations/` **in filename order**.
+   - Before `20260908_sign_takes_cron.sql`, store the service role key in Vault
+     (`select vault.create_secret('<your-service-role-key>', 'service_role_key');`)
      and replace `<PROJECT_REF>` in the file with this project's actual ref; see the
-     comment at the top of the file
+     comment at the top of the file.
+   - Older migrations create tables without explicit grants. Supabase stops
+     auto-granting Data API access to new tables as of 2026-10-30, so a fresh project
+     needs `grant select` (to `authenticated`) and `grant all` (to `service_role`) on
+     those tables; see `CLAUDE.md`.
 3. Copy your project URL and anon key from Settings → API
 
 ### 4. Set up environment variables
@@ -120,8 +167,9 @@ npm install -g supabase
 supabase login
 supabase link --project-ref YOUR_PROJECT_REF
 
-# Set your Anthropic API key as a secret
+# Set API keys as secrets (GNews: free plan, non-commercial use)
 supabase secrets set ANTHROPIC_API_KEY=your_anthropic_api_key
+supabase secrets set GNEWS_API_KEY=your_gnews_api_key
 
 # Deploy functions
 supabase functions deploy classify-content
@@ -132,6 +180,8 @@ supabase functions deploy extract-article
 supabase functions deploy fetch-news
 supabase functions deploy generate-sign-take
 supabase functions deploy generate-sign-takes-batch
+supabase functions deploy ask-persona
+supabase functions deploy delete-account
 ```
 
 `fetch-news` is scheduled hourly via `pg_cron`, confirmed live on the project
@@ -178,20 +228,20 @@ Scan the printed QR code with your device's camera — it opens in the installed
 
 ## The 12 ZodAIc Signs
 
-| Sign | Digital Analog | Traditional |
-|------|---------------|-------------|
-| ⚡ The Catalyst | Breaking news, startups, viral trends | Aries |
-| 📚 The Archive | Encyclopedias, reference, documentation | Taurus |
-| 💬 The Stream | Social media, messaging, commentary | Gemini |
-| 🌙 The Sanctuary | Wellness, community, mental health | Cancer |
-| ⭐ The Spotlight | Entertainment, celebrity, streaming | Leo |
-| 🔬 The Analyst | Data, research, analytics, technical | Virgo |
-| ⚖️ The Forum | Debate, reviews, op-eds, marketplaces | Libra |
-| 🔦 The Depths | Investigative journalism, security research | Scorpio |
-| 🧭 The Explorer | Education, travel, philosophy, courses | Sagittarius |
-| 💼 The Enterprise | Business, finance, B2B, productivity | Capricorn |
-| 🕸️ The Network | Open source, tech, decentralized | Aquarius |
-| 🌌 The Dream | Art, music, film, spirituality | Pisces |
+| Sign | Digital Analog | Traditional | Voice |
+|------|---------------|-------------|-------|
+| ⚡ The Catalyst | Breaking news, startups, viral trends | Aries | 🔥 Blaze |
+| 📚 The Archive | Encyclopedias, reference, documentation | Taurus | 🦉 Gerald |
+| 💬 The Stream | Social media, messaging, commentary | Gemini | 📱 Riley |
+| 🌙 The Sanctuary | Wellness, community, mental health | Cancer | 🧘 Sage |
+| ⭐ The Spotlight | Entertainment, celebrity, streaming | Leo | 📸 Star |
+| 🔬 The Analyst | Data, research, analytics, technical | Virgo | 🤓 Bob |
+| ⚖️ The Forum | Debate, reviews, op-eds, marketplaces | Libra | 🤝 Frank |
+| 🔦 The Depths | Investigative journalism, security research | Scorpio | 🕵️ Doug |
+| 🧭 The Explorer | Education, travel, philosophy, courses | Sagittarius | 🎒 Journey |
+| 💼 The Enterprise | Business, finance, B2B, productivity | Capricorn | 📈 Chad |
+| 🕸️ The Network | Open source, tech, decentralized | Aquarius | 🌱 Pip |
+| 🌌 The Dream | Art, music, film, spirituality | Pisces | 🐚 Marina |
 
 ---
 
