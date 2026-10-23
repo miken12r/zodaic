@@ -37,8 +37,9 @@ Built solo as a hands-on exploration of applied AI, with production-minded safeg
   respectful take instead of a lampoon. Facts must match the article, and only the voice's
   reaction is exaggerated. "Ask a voice" screens requests and declines inappropriate ones,
   with per-user and global daily limits.
-- **Security and privacy.** Row-level security on every table. The app only reads, and
-  server-side functions do all writes with keys kept off the device. Other users'
+- **Security and privacy.** Row-level security on every table: users can change only
+  their own rows (profile, follows, shares), and all news and AI-generated content is
+  written by server-side functions, with API keys kept off the device. Other users'
   profiles are served through a view that exposes only public fields, so birth dates are
   never visible to anyone else.
 - **Cost-conscious.** Free tiers wherever possible (Supabase, GNews, Expo) plus
