@@ -87,7 +87,9 @@ export async function fetchHoroscope(
     .eq('period', period)
     .lte('period_start', today)
     .gte('period_end', today)
-    .single()
+    .order('period_start', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
   if (error) return null
   return data as Horoscope
@@ -149,19 +151,61 @@ export interface PortAilsResult {
   compatibility: PortAilsCompatibility[]
   best_advice: string
   avoid_advice: string
+  reading_date: string
+  generated_at: string
 }
 
-// Generate PortAils compatibility reading
-export async function generatePortails(
+// Webstrology readings are generated server-side once a day per sign (5am
+// Mountain, by the generate-webstrology-daily cron) and stored in
+// webstrology_readings. A reading older than this means the job didn't run, so
+// the app asks generate-portails for today's instead.
+const READING_STALE_MS = 24 * 60 * 60 * 1000
+
+// generated_at of the newest reading this app session has seen, per sign. News
+// compares it with the reading its cached feed was ranked by, so a fresh
+// Webstrology reading re-ranks News on its next visit.
+const latestReadingStamp: Record<number, string> = {}
+
+export function getLatestReadingStamp(zodaicSignId: number): string | null {
+  return latestReadingStamp[zodaicSignId] ?? null
+}
+
+function noteReading(reading: PortAilsResult | null) {
+  if (!reading) return reading
+  const signId = (reading as PortAilsResult & { zodaic_sign_id?: number }).zodaic_sign_id
+  if (signId && (!latestReadingStamp[signId] || reading.generated_at > latestReadingStamp[signId])) {
+    latestReadingStamp[signId] = reading.generated_at
+  }
+  return reading
+}
+
+// Today's Webstrology reading for a sign. With generate: false (News), a missing or
+// stale reading returns whatever is stored rather than waiting on generation.
+export async function fetchWebstrologyReading(
   zodaicSignId: number,
-  horoscopeContent: string,
-  horoscopeThemes: string[]
-): Promise<PortAilsResult> {
-  const { data, error } = await supabase.functions.invoke('generate-portails', {
-    body: { zodaic_sign_id: zodaicSignId, horoscope_content: horoscopeContent, horoscope_themes: horoscopeThemes },
-  })
+  { generate = true }: { generate?: boolean } = {}
+): Promise<PortAilsResult | null> {
+  const { data, error } = await supabase
+    .from('webstrology_readings')
+    .select('zodaic_sign_id, reading_date, compatibility, best_advice, avoid_advice, generated_at')
+    .eq('zodaic_sign_id', zodaicSignId)
+    .order('reading_date', { ascending: false })
+    .limit(1)
+    .maybeSingle()
   if (error) throw error
-  return data as PortAilsResult
+
+  const stored = data as PortAilsResult | null
+  const fresh = stored && Date.now() - new Date(stored.generated_at).getTime() < READING_STALE_MS
+  if (fresh || !generate) return noteReading(stored)
+
+  const { data: generated, error: genError } = await supabase.functions.invoke('generate-portails', {
+    body: { zodaic_sign_id: zodaicSignId },
+  })
+  if (genError) {
+    if (stored) return noteReading(stored)
+    throw genError
+  }
+  return noteReading(generated as PortAilsResult)
 }
 
 const ELEMENT_MAP: Record<number, string> = {

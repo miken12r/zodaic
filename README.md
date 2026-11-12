@@ -82,11 +82,11 @@ zodaic/
 └── supabase/
     ├── migrations/                  # Database schema (run in order — see Setup)
     └── functions/
-        ├── _shared/                 # personas.ts (Deno mirror of the client's), generateSignTake.ts + signTakePrompt.ts (shared take generation)
+        ├── _shared/                 # personas.ts (Deno mirror of the client's), generateSignTake.ts + signTakePrompt.ts (shared take generation), horoscope.ts + webstrologyPrompt.ts (horoscopes and daily Webstrology readings)
         ├── ask-persona/             # "Ask a voice": finds recent stories on a topic via Claude web search (rate-limited)
         ├── classify-content/        # Claude-powered URL → sign classifier
         ├── generate-horoscope/      # Claude-powered weekly/monthly horoscope generator
-        ├── generate-portails/       # Compatibility reading across all 12 signs
+        ├── generate-portails/       # Daily Webstrology reading per sign (news-driven), stored in webstrology_readings; pg_cron-scheduled 5am Mountain
         ├── generate-lens/           # "Read through [sign] eyes" article summary
         ├── extract-article/         # Readability-based extraction for reader mode
         ├── delete-account/          # Deletes the signed-in user's account

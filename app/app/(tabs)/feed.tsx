@@ -1,24 +1,16 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '@/lib/supabase'
-import { fetchHoroscope, generateHoroscope, generatePortails, PortAilsResult } from '@/lib/api'
+import { fetchWebstrologyReading, PortAilsResult } from '@/lib/api'
 import { SIGN_BY_ID } from '@/constants/signs'
 import { useFocusEffect, useRouter } from 'expo-router'
 import SignDetailModal from '@/components/SignDetailModal'
 
-const CACHE_TTL_MS = 12 * 60 * 60 * 1000
-
-async function getCached(key: string): Promise<PortAilsResult | null> {
-  const raw = await AsyncStorage.getItem(key)
-  if (!raw) return null
-  const { data, timestamp } = JSON.parse(raw)
-  if (Date.now() - timestamp > CACHE_TTL_MS) return null
-  return data as PortAilsResult
-}
-
-async function setCached(key: string, data: PortAilsResult) {
-  await AsyncStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }))
+function formatUpdated(generatedAt: string): string {
+  const d = new Date(generatedAt)
+  const date = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  return `Updated ${date} · ${time}`
 }
 
 const LABEL_COLORS: Record<string, string> = {
@@ -36,9 +28,12 @@ export default function PortAilsScreen() {
   const [error, setError] = useState<string | null>(null)
   const [selectedSignId, setSelectedSignId] = useState<number | null>(null)
   const router = useRouter()
+  const hasReading = useRef(false)
 
   useFocusEffect(useCallback(() => {
-    setLoading(true)
+    // The reading is a quick table read now, so only the first load shows the
+    // full-screen spinner; later visits refresh in place.
+    if (!hasReading.current) setLoading(true)
     setError(null)
 
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -58,29 +53,16 @@ export default function PortAilsScreen() {
 
       setPrimarySignId(profile.primary_zodaic_sign_id)
 
-      const cacheKey = `portails_${profile.primary_zodaic_sign_id}`
-      const cached = await getCached(cacheKey)
-      if (cached) {
-        setPortails(cached)
-        setLoading(false)
-        return
-      }
-
-      let h = await fetchHoroscope(profile.primary_zodaic_sign_id)
-      if (!h) h = await generateHoroscope(profile.primary_zodaic_sign_id, 'weekly')
-
-      if (!h) {
-        setError('Could not load your horoscope. Try again later.')
-        setLoading(false)
-        return
-      }
-
       try {
-        const result = await generatePortails(profile.primary_zodaic_sign_id, h.content, h.themes)
-        await setCached(cacheKey, result)
-        setPortails(result)
-      } catch {
-        setError('Could not generate your Webstrology reading. Try again later.')
+        const reading = await fetchWebstrologyReading(profile.primary_zodaic_sign_id)
+        if (reading) {
+          setPortails(reading)
+          hasReading.current = true
+        }
+        else setError('Could not load your Webstrology reading. Try again later.')
+      } catch (e) {
+        console.warn('[Webstrology] reading failed to load', e)
+        setError('Could not load your Webstrology reading. Try again later.')
       }
 
       setLoading(false)
@@ -127,6 +109,9 @@ export default function PortAilsScreen() {
         )}
       </View>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {portails.generated_at && (
+        <Text style={styles.updatedText}>{formatUpdated(portails.generated_at)}</Text>
+      )}
       <View style={styles.adviceCard}>
         <Text style={styles.adviceLabel}>✦ Seek</Text>
         <Text style={styles.adviceText}>{portails.best_advice}</Text>
@@ -224,6 +209,7 @@ const styles = StyleSheet.create({
   errorText: { color: '#666', fontSize: 15, textAlign: 'center' },
   title: { fontSize: 28, fontWeight: '800', color: '#fff', marginBottom: 4 },
   subtitle: { fontSize: 14, color: '#888', marginBottom: 20 },
+  updatedText: { color: '#666', fontSize: 12, marginBottom: 10 },
   adviceCard: { backgroundColor: '#1a1a2e', borderRadius: 16, padding: 18, marginBottom: 24, borderWidth: 1, borderColor: '#2a2a3e' },
   adviceLabel: { color: '#9b59b6', fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
   adviceText: { color: '#ddd', fontSize: 14, lineHeight: 20 },

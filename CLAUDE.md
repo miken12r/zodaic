@@ -97,6 +97,11 @@ For UI changes, run on device with the custom dev client
   rows users edit directly). RLS still applies on top. Tables created before then
   kept their old grants but have none in their migrations, so rebuilding from
   migrations (new project, `db reset`) would need a backfill.
+- Webstrology readings are pre-generated daily per sign by the
+  `generate-webstrology-daily` cron (`20261112c` migration, 12:00 UTC = 5am MST)
+  calling `generate-portails`, which generates at most once per sign per
+  Mountain-time day and stores the result in `webstrology_readings`. The app
+  only reads that table, invoking the function if the newest reading is over 24h old.
 - `fetch-news`'s hourly `pg_cron` schedule exists only on the hosted project,
   not in any migration.
 - `fetch-news` uses GNews's free plan (`GNEWS_API_KEY` secret): non-commercial

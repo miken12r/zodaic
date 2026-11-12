@@ -1,40 +1,118 @@
-import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
+import { getOrCreateHoroscope } from '../_shared/horoscope.ts'
+import { buildWebstrologyPrompt, otherSignIds, scoreCompatibility, SIGN_NAMES, type NewsItem } from '../_shared/webstrologyPrompt.ts'
 
-const ELEMENTS: Record<number, 'fire' | 'earth' | 'air' | 'water'> = {
-  1: 'fire',  // Catalyst
-  2: 'earth', // Archive
-  3: 'air',   // Stream
-  4: 'water', // Sanctuary
-  5: 'fire',  // Spotlight
-  6: 'earth', // Analyst
-  7: 'air',   // Forum
-  8: 'water', // Depths
-  9: 'fire',  // Explorer
-  10: 'earth',// Enterprise
-  11: 'air',  // Network
-  12: 'water',// Dream
+// Returns a sign's Webstrology reading for today (America/Denver), generating and
+// storing it in webstrology_readings the first time it's asked for. The
+// 20261112c cron migration calls this for all 12 signs at 5am Mountain, so the
+// app normally just reads the stored row. Body: { zodaic_sign_id }. Older app
+// builds also send horoscope_content/horoscope_themes; those are ignored, since the
+// horoscope is now read server-side. Generation is once per sign per day, which
+// also caps what any caller can spend.
+
+const MODEL = 'claude-sonnet-4-6'
+
+const denverDate = (d = new Date()) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Denver' }).format(d) // YYYY-MM-DD
+const denverLongDate = (d = new Date()) =>
+  new Intl.DateTimeFormat('en-US', { timeZone: 'America/Denver', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(d)
+
+const READING_COLUMNS = 'zodaic_sign_id, reading_date, compatibility, best_advice, avoid_advice, generated_at'
+
+async function findReading(supabase: SupabaseClient, signId: number, date: string) {
+  const { data, error } = await supabase
+    .from('webstrology_readings')
+    .select(READING_COLUMNS)
+    .eq('zodaic_sign_id', signId)
+    .eq('reading_date', date)
+    .maybeSingle()
+  if (error) throw error
+  return data
 }
 
-const COMPATIBLE_ELEMENTS: Record<string, string[]> = {
-  fire:  ['fire', 'air'],
-  earth: ['earth', 'water'],
-  air:   ['air', 'fire'],
-  water: ['water', 'earth'],
+// Recent news per sign, highest classification confidence first. Widens to 48
+// hours on a thin day (GNews's free plan delays articles by 12 hours).
+async function recentNews(supabase: SupabaseClient): Promise<{ hours: number; bySign: Record<number, NewsItem[]> }> {
+  let bySign: Record<number, NewsItem[]> = {}
+  for (const hours of [24, 48]) {
+    const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
+    const { data, error } = await supabase
+      .from('content_items')
+      .select('zodaic_sign_id, title, url, classification_confidence')
+      .eq('source', 'news')
+      .gte('published_at', since)
+      .order('classification_confidence', { ascending: false })
+      .limit(1000)
+    if (error) throw error
+    bySign = {}
+    for (const item of (data ?? []) as NewsItem[]) (bySign[item.zodaic_sign_id] ??= []).push(item)
+    if ((data ?? []).length >= 20) return { hours, bySign }
+  }
+  return { hours: 48, bySign }
 }
 
-function baseScore(userSignId: number, otherSignId: number): number {
-  if (userSignId === otherSignId) return 0 // exclude self
-  const userEl = ELEMENTS[userSignId]
-  const otherEl = ELEMENTS[otherSignId]
-  if (userEl === otherEl) return 85
-  if (COMPATIBLE_ELEMENTS[userEl].includes(otherEl)) return 70
-  return 35
-}
+async function generateReading(supabase: SupabaseClient, apiKey: string, signId: number, today: string) {
+  const horoscope = await getOrCreateHoroscope(supabase, apiKey, signId, 'weekly')
+  const { hours, bySign } = await recentNews(supabase)
 
-const SIGN_NAMES: Record<number, string> = {
-  1: 'The Catalyst', 2: 'The Archive', 3: 'The Stream', 4: 'The Sanctuary',
-  5: 'The Spotlight', 6: 'The Analyst', 7: 'The Forum', 8: 'The Depths',
-  9: 'The Explorer', 10: 'The Enterprise', 11: 'The Network', 12: 'The Dream',
+  const { data: yesterday } = await supabase
+    .from('webstrology_readings')
+    .select('compatibility, best_advice, avoid_advice')
+    .eq('zodaic_sign_id', signId)
+    .lt('reading_date', today)
+    .order('reading_date', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const prompt = buildWebstrologyPrompt({
+    signId,
+    longDate: denverLongDate(),
+    horoscope,
+    newsHours: hours,
+    newsBySign: bySign,
+    yesterday,
+  })
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({ model: MODEL, max_tokens: 2048, messages: [{ role: 'user', content: prompt }] }),
+  })
+  if (!response.ok) throw new Error(`Anthropic error ${response.status}: ${await response.text()}`)
+
+  const anthropicData = await response.json()
+  const rawText = anthropicData.content[0].text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+  const result = JSON.parse(rawText)
+
+  // Example site per sign: today's top story, or the sign's best-classified item
+  // of all time if it had no news today.
+  const quietSigns = otherSignIds(signId).filter((id) => !bySign[id]?.length)
+  const fallbackBySign: Record<number, { title: string; url: string }> = {}
+  if (quietSigns.length > 0) {
+    const { data: fallbackItems } = await supabase
+      .from('content_items')
+      .select('zodaic_sign_id, title, url')
+      .in('zodaic_sign_id', quietSigns)
+      .gte('classification_confidence', 0.70)
+      .order('classification_confidence', { ascending: false })
+      .limit(200)
+    for (const item of fallbackItems ?? []) fallbackBySign[item.zodaic_sign_id] ??= { title: item.title, url: item.url }
+  }
+
+  const compatibility = scoreCompatibility(signId, result.compatibility).map((c) => {
+    const recent = bySign[c.sign_id]?.[0]
+    return { ...c, example: recent ? { title: recent.title, url: recent.url } : fallbackBySign[c.sign_id] ?? null }
+  })
+
+  // A request racing the cron (or another request) for the same sign and day loses
+  // to the unique index; both then return the stored winner.
+  const { error: insertError } = await supabase
+    .from('webstrology_readings')
+    .upsert(
+      { zodaic_sign_id: signId, reading_date: today, compatibility, best_advice: result.best_advice, avoid_advice: result.avoid_advice, model: MODEL },
+      { onConflict: 'zodaic_sign_id,reading_date', ignoreDuplicates: true }
+    )
+  if (insertError) throw insertError
 }
 
 Deno.serve(async (req) => {
@@ -43,107 +121,30 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { zodaic_sign_id, horoscope_content, horoscope_themes } = await req.json()
-    console.log('Generating PortAils for sign:', zodaic_sign_id)
+    const { zodaic_sign_id } = await req.json()
+    const signId = Number(zodaic_sign_id)
+    if (!SIGN_NAMES[signId]) {
+      return new Response(JSON.stringify({ error: 'Invalid zodaic_sign_id' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      })
+    }
 
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
     if (!apiKey) return new Response(JSON.stringify({ error: 'API key not configured' }), { status: 500 })
 
-    const otherSigns = Object.keys(SIGN_NAMES)
-      .map(Number)
-      .filter((id) => id !== zodaic_sign_id)
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+    const today = denverDate()
 
-    const baseScores = otherSigns.map((id) => ({
-      sign_id: id,
-      sign_name: SIGN_NAMES[id],
-      base_score: baseScore(zodaic_sign_id, id),
-    }))
-
-    const prompt = `You are ZodAIc, a digital oracle. Your job is to analyze a user's current horoscope and adjust sign compatibility scores based on what the horoscope reveals about their energy today.
-
-The user's sign is: ${SIGN_NAMES[zodaic_sign_id]}
-
-Their current weekly horoscope:
-"${horoscope_content}"
-
-Horoscope themes: ${horoscope_themes.join(', ')}
-
-Here are the 11 other ZodAIc signs with their elemental baseline compatibility scores (0-100):
-${baseScores.map((s) => `- ${s.sign_name} (id: ${s.sign_id}): base score ${s.base_score}`).join('\n')}
-
-Instructions:
-1. Read the horoscope carefully for any signals about what type of content or energy will serve the user well or poorly today. Look for explicit mentions (e.g. "seek innovation", "avoid noise") and implicit themes.
-2. Adjust each sign's score by -20 to +20 based on alignment with the horoscope's energy.
-3. Write a short 1-sentence reasoning for each sign explaining the adjusted score in terms of internet content.
-4. Write one sentence of overall "best advice" for navigating the internet today.
-5. Write one sentence of "avoid advice" for what types of content to steer clear of.
-
-Respond with valid JSON only, no other text:
-{
-  "compatibility": [
-    { "sign_id": <number>, "score": <0-100>, "label": "<Excellent|Good|Neutral|Challenging|Avoid>", "reasoning": "<1 sentence>" }
-  ],
-  "best_advice": "<sentence>",
-  "avoid_advice": "<sentence>"
-}`
-
-    console.log('Calling Anthropic API...')
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 2048,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
-
-    if (!response.ok) {
-      const errText = await response.text()
-      console.error('Anthropic API error:', response.status, errText)
-      return new Response(JSON.stringify({ error: 'Anthropic API error', detail: errText }), { status: 500 })
+    let reading = await findReading(supabase, signId, today)
+    if (!reading) {
+      console.log('Generating Webstrology reading for sign', signId, today)
+      await generateReading(supabase, apiKey, signId, today)
+      reading = await findReading(supabase, signId, today)
+      if (!reading) throw new Error('Failed to store reading')
     }
 
-    const anthropicData = await response.json()
-    const rawText = anthropicData.content[0].text
-    const responseText = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
-    const result = JSON.parse(responseText)
-
-    // Sort by score descending
-    result.compatibility.sort((a: any, b: any) => b.score - a.score)
-
-    // Fetch top example site for each sign from content_items
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
-
-    const signIds = result.compatibility.map((c: any) => c.sign_id)
-    const { data: contentItems } = await supabase
-      .from('content_items')
-      .select('zodaic_sign_id, title, url, classification_confidence')
-      .in('zodaic_sign_id', signIds)
-      .gte('classification_confidence', 0.70)
-      .order('classification_confidence', { ascending: false })
-
-    const exampleBySign: Record<number, { title: string; url: string }> = {}
-    for (const item of (contentItems ?? [])) {
-      if (!exampleBySign[item.zodaic_sign_id]) {
-        exampleBySign[item.zodaic_sign_id] = { title: item.title, url: item.url }
-      }
-    }
-
-    result.compatibility = result.compatibility.map((c: any) => ({
-      ...c,
-      example: exampleBySign[c.sign_id] ?? null,
-    }))
-
-    console.log('PortAils generated successfully')
-    return new Response(JSON.stringify(result), {
+    return new Response(JSON.stringify(reading), {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     })
   } catch (err) {

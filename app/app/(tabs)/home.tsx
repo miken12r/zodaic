@@ -6,12 +6,11 @@ import UserProfileSheet from '@/components/UserProfileSheet'
 import ShareCard from '@/components/ShareCard'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '@/lib/supabase'
-import { fetchHoroscope, generateHoroscope, fetchHomeFeed, fetchTrendingFeed, getShareRoute, FeedItem, PortAilsResult } from '@/lib/api'
+import { fetchWebstrologyReading, getLatestReadingStamp, fetchHomeFeed, fetchTrendingFeed, getShareRoute, FeedItem } from '@/lib/api'
 import { SIGN_BY_ID, ZODAIC_SIGNS } from '@/constants/signs'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { loadFeedSettings, isPaywalled, FeedSettingsData, DEFAULT_FEED_SETTINGS } from '@/components/FeedSettings'
 
-const CACHE_TTL_MS = 12 * 60 * 60 * 1000
 const FEED_CACHE_TTL_MS = 5 * 60 * 1000
 const DISMISSED_KEY = 'home_dismissed_v1'
 const DISMISSED_TTL_MS = 7 * 24 * 60 * 60 * 1000
@@ -35,7 +34,9 @@ async function saveDismissed(id: string, reason: 'read' | 'not_interested', sign
   await AsyncStorage.setItem(DISMISSED_KEY, JSON.stringify(updated))
 }
 
-let feedCache: { items: FeedItem[]; signId: number | null; ts: number } | null = null
+// readingStamp is the generated_at of the Webstrology reading the feed was ranked
+// by; a newer reading (see getLatestReadingStamp) invalidates the cache.
+let feedCache: { items: FeedItem[]; signId: number | null; ts: number; readingStamp: string | null } | null = null
 
 const ELEMENT_MAP: Record<number, string> = {
   1: 'fire', 2: 'earth', 3: 'air', 4: 'water',
@@ -64,14 +65,6 @@ function scoreToLabel(score: number): string {
   if (score >= 50) return 'Neutral'
   if (score >= 40) return 'Challenging'
   return 'Avoid'
-}
-
-async function getPortailsCache(key: string): Promise<PortAilsResult | null> {
-  const raw = await AsyncStorage.getItem(key)
-  if (!raw) return null
-  const { data, timestamp } = JSON.parse(raw)
-  if (Date.now() - timestamp > CACHE_TTL_MS) return null
-  return data as PortAilsResult
 }
 
 export default function HomeScreen() {
@@ -108,27 +101,30 @@ export default function HomeScreen() {
 
     if (!signId) {
       const items = await fetchTrendingFeed()
-      feedCache = { items, signId: null, ts: Date.now() }
+      feedCache = { items, signId: null, ts: Date.now(), readingStamp: null }
       setFeedItems(items)
       setLoading(false)
       return
     }
 
+    // Rank by today's Webstrology reading without waiting on generation; fall back
+    // to element scores if there's no reading yet.
     let scores: Record<number, number> = {}
-    const cached = await getPortailsCache(`portails_${signId}`)
-    if (cached) {
-      scores = Object.fromEntries(cached.compatibility.map((c) => [c.sign_id, c.score]))
+    const reading = await fetchWebstrologyReading(signId, { generate: false }).catch((e) => {
+      console.warn('[News] Webstrology reading failed to load', e)
+      return null
+    })
+    if (reading) {
+      scores = Object.fromEntries(reading.compatibility.map((c) => [c.sign_id, c.score]))
     } else {
       for (let i = 1; i <= 12; i++) {
         if (i !== signId) scores[i] = elementalScore(signId, i)
       }
-      let h = await fetchHoroscope(signId)
-      if (!h) h = await generateHoroscope(signId, 'weekly')
     }
     setCompatibilityScores(scores)
 
     const items = await fetchHomeFeed(user.id, signId, scores)
-    feedCache = { items, signId, ts: Date.now() }
+    feedCache = { items, signId, ts: Date.now(), readingStamp: reading?.generated_at ?? null }
     setFeedItems(items)
     setLoading(false)
   }
@@ -137,7 +133,9 @@ export default function HomeScreen() {
     loadDismissed().then(setDismissedIds)
     loadFeedSettings().then(setFeedSettings)
     const now = Date.now()
-    if (feedCache && now - feedCache.ts < FEED_CACHE_TTL_MS) {
+    const newerReading = feedCache?.signId != null && getLatestReadingStamp(feedCache.signId) !== null
+      && getLatestReadingStamp(feedCache.signId) !== feedCache.readingStamp
+    if (feedCache && now - feedCache.ts < FEED_CACHE_TTL_MS && !newerReading) {
       // Cache is fresh — restore instantly and skip the fetch
       setFeedItems(feedCache.items)
       setPrimarySignId(feedCache.signId)
