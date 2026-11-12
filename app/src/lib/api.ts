@@ -270,12 +270,13 @@ async function attachShareContent(shares: Share[]): Promise<ResolvedShare[]> {
 // A user's shared history for their profile sheet — no time-window filter, unlike
 // fetchHomeFeed's live feed, since this is meant to show everything they've shared.
 export async function fetchUserShares(userId: string, limit = 30): Promise<ResolvedShare[]> {
-  const { data: shares } = await supabase
+  const { data: shares, error } = await supabase
     .from('shares')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit)
+  if (error) throw error
   if (!shares || shares.length === 0) return []
   return attachShareContent(shares)
 }
@@ -425,10 +426,12 @@ export async function fetchUserProfile(
 
 // Fetch all users except current user, with follow status
 export async function fetchUsers(currentUserId: string): Promise<{ id: string; username: string; display_name: string | null; primary_zodaic_sign_id: number | null; isFollowing: boolean }[]> {
-  const [{ data: profiles }, { data: follows }] = await Promise.all([
+  const [{ data: profiles, error: profilesError }, { data: follows, error: followsError }] = await Promise.all([
     supabase.from('public_profiles').select('id, username, display_name, primary_zodaic_sign_id').neq('id', currentUserId),
     supabase.from('follows').select('following_id').eq('follower_id', currentUserId),
   ])
+  if (profilesError) throw profilesError
+  if (followsError) throw followsError
 
   const followingSet = new Set((follows ?? []).map((f) => f.following_id))
   return (profiles ?? []).map((p) => ({ ...p, isFollowing: followingSet.has(p.id) }))

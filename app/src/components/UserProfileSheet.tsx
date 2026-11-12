@@ -38,6 +38,10 @@ export default function UserProfileSheet({ userId, currentUserId, onClose }: Pro
     fetchUserShares(userId).then((s) => {
       setShares(s)
       setSharesLoading(false)
+    }).catch((e) => {
+      console.warn('[UserProfileSheet] shares failed to load', e)
+      setShares([])
+      setSharesLoading(false)
     })
   }, [userId, currentUserId])
 

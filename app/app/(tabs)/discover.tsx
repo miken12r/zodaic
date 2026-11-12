@@ -45,19 +45,38 @@ export default function DiscoverScreen() {
   const [peopleSearch, setPeopleSearch] = useState('')
   const [myShares, setMyShares] = useState<ResolvedShare[]>([])
   const [mySharesLoading, setMySharesLoading] = useState(false)
+  const [mySharesError, setMySharesError] = useState<string | null>(null)
+  const [peopleError, setPeopleError] = useState<string | null>(null)
   const scrollRef = useRef<ScrollView>(null)
 
-  useFocusEffect(useCallback(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return
-      setCurrentUserId(user.id)
-      fetchUsers(user.id).then(setPeople)
-      setMySharesLoading(true)
-      fetchUserShares(user.id).then((s) => {
-        setMyShares(s)
-        setMySharesLoading(false)
-      })
+  // Load errors are shown with a Retry rather than left as empty lists: a failed
+  // getUser() or query used to look exactly like "no people" / "no shares" (2026-11-12).
+  const loadNetworking = useCallback(async () => {
+    setPeopleError(null)
+    setMySharesError(null)
+    setMySharesLoading(true)
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      console.warn('[Networking] getUser failed', userError)
+      const message = "Couldn't confirm you're signed in."
+      setPeopleError(message)
+      setMySharesError(message)
+      setMySharesLoading(false)
+      return
+    }
+    setCurrentUserId(user.id)
+    fetchUsers(user.id).then(setPeople).catch((e) => {
+      console.warn('[Networking] people failed to load', e)
+      setPeopleError("Couldn't load people.")
     })
+    fetchUserShares(user.id).then(setMyShares).catch((e) => {
+      console.warn('[Networking] my feed failed to load', e)
+      setMySharesError("Couldn't load your feed.")
+    }).finally(() => setMySharesLoading(false))
+  }, [])
+
+  useFocusEffect(useCallback(() => {
+    loadNetworking()
     if (signId || contentId) setActiveTab('classify')
     if (contentId) {
       fetchContentItem(contentId).then((item) => {
@@ -80,7 +99,18 @@ export default function DiscoverScreen() {
     } else {
       setFilteredUrls([])
     }
-  }, [filteredSignId, signId, contentId]))
+  }, [filteredSignId, signId, contentId, loadNetworking]))
+
+  function renderLoadError(message: string) {
+    return (
+      <View style={styles.loadError}>
+        <Text style={styles.loadErrorText}>{message}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadNetworking}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    )
+  }
 
   async function handleShare() {
     if (!result) return
@@ -152,6 +182,8 @@ export default function DiscoverScreen() {
           <Text style={styles.mySharesTitle}>My Feed</Text>
           {mySharesLoading ? (
             <ActivityIndicator color="#9b59b6" style={{ marginTop: 16 }} />
+          ) : mySharesError ? (
+            renderLoadError(mySharesError)
           ) : myShares.length === 0 ? (
             <Text style={styles.subtitle}>You haven't shared anything yet — share an article or a Hot Take to see it here.</Text>
           ) : (
@@ -282,9 +314,11 @@ export default function DiscoverScreen() {
             data={filteredPeople}
             keyExtractor={(person) => person.id}
             ListEmptyComponent={
-              <Text style={styles.peopleEmpty}>
-                {peopleSearch ? 'No users match your search.' : 'No other users yet — invite someone!'}
-              </Text>
+              peopleError ? renderLoadError(peopleError) : (
+                <Text style={styles.peopleEmpty}>
+                  {peopleSearch ? 'No users match your search.' : 'No other users yet — invite someone!'}
+                </Text>
+              )
             }
             renderItem={({ item: person }) => {
               const sign = person.primary_zodaic_sign_id ? SIGN_BY_ID[person.primary_zodaic_sign_id] : null
@@ -378,6 +412,10 @@ const styles = StyleSheet.create({
   filteredItemTitle: { color: '#ddd', fontSize: 14, fontWeight: '600' },
   filteredItemUrl: { color: '#555', fontSize: 11, marginTop: 2 },
   filteredConfidence: { fontSize: 13, fontWeight: '800', marginLeft: 8 },
+  loadError: { alignItems: 'center', paddingVertical: 32, gap: 12 },
+  loadErrorText: { color: '#888', fontSize: 14, textAlign: 'center' },
+  retryButton: { borderWidth: 1, borderColor: '#9b59b6', borderRadius: 20, paddingHorizontal: 20, paddingVertical: 8 },
+  retryButtonText: { color: '#9b59b6', fontSize: 14, fontWeight: '700' },
   peopleEmpty: { color: '#555', fontSize: 14, fontStyle: 'italic', textAlign: 'center', paddingVertical: 32 },
   searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a2e', borderRadius: 12, borderWidth: 1, borderColor: '#2a2a3e', marginBottom: 16 },
   searchInput: { flex: 1, color: '#fff', fontSize: 15, padding: 14 },
