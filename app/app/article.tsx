@@ -87,7 +87,7 @@ function parseReaderContent(article: { title: string; byline: string; site_name:
 }
 
 export default function ArticleScreen() {
-  const { url, contentId, signId, title, description, confidence, characteristics, takeId, takeHeadline, takeBlurb, voice } = useLocalSearchParams<{
+  const { url, contentId, signId, title, description, confidence, characteristics, takeId, takeHeadline, takeBlurb, voice, shared: sharedParam } = useLocalSearchParams<{
     url: string
     contentId: string
     signId: string
@@ -100,12 +100,14 @@ export default function ArticleScreen() {
     takeBlurb: string
     // Persona to open the Hot Take sheet with on arrival (from Sites' Ask a voice).
     voice: string
+    // '1' when Sites already saved this article to the user's feed.
+    shared: string
   }>()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const [webLoading, setWebLoading] = useState(true)
   const [sharing, setSharing] = useState(false)
-  const [shared, setShared] = useState(false)
+  const [shared, setShared] = useState(sharedParam === '1')
   const [signModalVisible, setSignModalVisible] = useState(false)
   const [lensVisible, setLensVisible] = useState(false)
   const [lensText, setLensText] = useState<{ intro: string; bullets: string[] } | null>(null)
@@ -274,7 +276,7 @@ export default function ArticleScreen() {
   }
 
   async function handleShare() {
-    if (!contentId) return
+    if (!contentId || shared) return
     setSharing(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()

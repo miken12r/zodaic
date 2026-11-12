@@ -556,6 +556,22 @@ export async function createShare(
   return data as Share
 }
 
+// Saves a classified article to the user's feed (as Share to Feed does), unless
+// they've already shared it, so classifying the same link twice doesn't post it
+// twice. Used by Sites' Ask a voice and Paste a link, which save automatically.
+export async function saveArticleToFeed(userId: string, contentId: string, message: string): Promise<void> {
+  const { data: existing, error } = await supabase
+    .from('shares')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('content_type', 'sign_reading')
+    .eq('content_id', contentId)
+    .limit(1)
+  if (error) throw error
+  if (existing && existing.length > 0) return
+  await createShare(userId, 'sign_reading', contentId, message)
+}
+
 // Permanently delete the current user's account. Server-side deletion cascades through
 // every table referencing profiles/auth.users; signs out locally only after that succeeds.
 export async function deleteAccount(): Promise<void> {

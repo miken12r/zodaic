@@ -3,7 +3,7 @@ import { View, Text, FlatList, StyleSheet, TouchableOpacity, ScrollView, Activit
 import { useFocusEffect, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '@/lib/supabase'
-import { fetchSites, followSite, unfollowSite, classifyContent, askPersona, AskError, AskResult, Site } from '@/lib/api'
+import { fetchSites, followSite, unfollowSite, classifyContent, saveArticleToFeed, askPersona, AskError, AskResult, Site } from '@/lib/api'
 import { SIGN_BY_ID, ZODAIC_SIGNS, dropThe } from '@/constants/signs'
 import { PERSONA_BY_SIGN_ID, personaCredit } from '@/constants/personas'
 import SignDetailModal from '@/components/SignDetailModal'
@@ -70,8 +70,19 @@ export default function SitesScreen() {
   // A classified URL opens straight into the article screen — the same view as
   // the News feed, with the {Sign} View / Hot Take sheets and Share to Feed /
   // Share Link. `voice` (from Ask) opens that persona's Hot Take right away.
+  // Articles found through Ask a voice or Paste a link are saved to the user's
+  // feed automatically; a failed save is logged but doesn't block opening.
   async function openClassified(target: string, voice?: number) {
     const item = await classifyContent(target)
+    let saved = false
+    if (userId) {
+      try {
+        await saveArticleToFeed(userId, item.id, `${item.title} is ${SIGN_BY_ID[item.zodaic_sign_id]?.name} energy.`)
+        saved = true
+      } catch (e) {
+        console.warn('[Sites] auto-save to feed failed', e)
+      }
+    }
     setClassifyModalVisible(false)
     router.push({
       pathname: '/article',
@@ -84,6 +95,7 @@ export default function SitesScreen() {
         confidence: String(item.classification_confidence),
         characteristics: JSON.stringify(item.characteristics ?? []),
         ...(voice ? { voice: String(voice) } : {}),
+        ...(saved ? { shared: '1' } : {}),
       },
     })
   }
