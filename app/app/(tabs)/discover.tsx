@@ -13,20 +13,23 @@ export default function DiscoverScreen() {
   const { signId, contentId } = useLocalSearchParams<{ signId?: string; contentId?: string }>()
   const router = useRouter()
 
-  function handleReadArticle() {
-    if (!result) return
+  function openArticle(item: ContentItem) {
     router.push({
       pathname: '/article',
       params: {
-        url: result.url,
-        contentId: result.id,
-        signId: String(result.zodaic_sign_id),
-        title: result.title ?? '',
-        description: result.description ?? '',
-        confidence: String(result.classification_confidence),
-        characteristics: JSON.stringify(result.characteristics ?? []),
+        url: item.url,
+        contentId: item.id,
+        signId: String(item.zodaic_sign_id),
+        title: item.title ?? '',
+        description: item.description ?? '',
+        confidence: String(item.classification_confidence),
+        characteristics: JSON.stringify(item.characteristics ?? []),
       },
     })
+  }
+
+  function handleReadArticle() {
+    if (result) openArticle(result)
   }
   const filteredSignId = signId ? parseInt(signId) : null
   const filteredSign = filteredSignId ? SIGN_BY_ID[filteredSignId] : null
@@ -260,7 +263,7 @@ export default function DiscoverScreen() {
             <Text style={[styles.filteredTitle, { color: filteredSign.color }]}>
               {filteredSign.symbol} {filteredSign.name} · Top Sites
             </Text>
-            <TouchableOpacity onPress={() => router.setParams({ signId: '' })}>
+            <TouchableOpacity onPress={() => { setResult(null); router.setParams({ signId: '' }) }}>
               <Text style={styles.clearFilter}>✕ Clear</Text>
             </TouchableOpacity>
           </View>
@@ -271,7 +274,9 @@ export default function DiscoverScreen() {
             <Text style={styles.filteredEmpty}>No high-confidence sites found for this sign yet. Classify more URLs!</Text>
           ) : (
             filteredUrls.map((item) => (
-              <TouchableOpacity key={item.id} style={styles.filteredItem} onPress={() => { setResult(item); setShared(false); scrollRef.current?.scrollTo({ y: 0, animated: true }) }}>
+              // Opens the article directly, like stories everywhere else; this used to
+              // set a result tile above the list that nothing could dismiss.
+              <TouchableOpacity key={item.id} style={styles.filteredItem} onPress={() => openArticle(item)}>
                 <View style={styles.filteredItemText}>
                   <Text style={styles.filteredItemTitle} numberOfLines={1}>{item.title}</Text>
                   <Text style={styles.filteredItemUrl} numberOfLines={1}>{item.url}</Text>
