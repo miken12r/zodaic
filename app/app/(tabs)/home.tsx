@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, Image, Modal, ScrollView } from 'react-native'
 import { Swipeable } from 'react-native-gesture-handler'
 import SignDetailModal from '@/components/SignDetailModal'
@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '@/lib/supabase'
 import { fetchWebstrologyReading, getLatestReadingStamp, fetchHomeFeed, fetchTrendingFeed, getShareRoute, FeedItem } from '@/lib/api'
 import { SIGN_BY_ID, ZODAIC_SIGNS } from '@/constants/signs'
-import { useFocusEffect, useRouter } from 'expo-router'
+import { useFocusEffect, useNavigation, useRouter } from 'expo-router'
 import { loadFeedSettings, isPaywalled, FeedSettingsData, DEFAULT_FEED_SETTINGS } from '@/components/FeedSettings'
 
 const FEED_CACHE_TTL_MS = 5 * 60 * 1000
@@ -83,7 +83,9 @@ export default function HomeScreen() {
   const [explainerVisible, setExplainerVisible] = useState(false)
   const [feedSettings, setFeedSettings] = useState<FeedSettingsData>(DEFAULT_FEED_SETTINGS)
   const swipeableRefs = useRef<Map<string, Swipeable | null>>(new Map())
+  const listRef = useRef<FlatList<FeedItem>>(null)
   const router = useRouter()
+  const navigation = useNavigation()
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -153,6 +155,17 @@ export default function HomeScreen() {
     await load()
     setRefreshing(false)
   }
+
+  // Tapping the News tab icon while already on News jumps to the top and refreshes.
+  const onRefreshRef = useRef(onRefresh)
+  onRefreshRef.current = onRefresh
+  useEffect(() => {
+    return navigation.addListener('tabPress' as never, () => {
+      if (!navigation.isFocused()) return
+      listRef.current?.scrollToOffset({ offset: 0, animated: true })
+      onRefreshRef.current()
+    })
+  }, [navigation])
 
   const primarySign = primarySignId ? SIGN_BY_ID[primarySignId] : null
 
@@ -329,6 +342,7 @@ export default function HomeScreen() {
       <View style={styles.screen}>
         <View style={styles.fixedHeader}>{renderFixedHeader()}</View>
         <FlatList
+          ref={listRef}
           style={styles.container}
           data={filteredItems}
           keyExtractor={(item, i) => `${item.type}-${i}`}
