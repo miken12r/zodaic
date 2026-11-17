@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform, Dimensions, Keyboard } from 'react-native'
-import { useFocusEffect, useRouter } from 'expo-router'
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '@/lib/supabase'
 import { fetchSites, followSite, unfollowSite, classifyContent, saveArticleToFeed, askPersona, AskError, AskResult, Site } from '@/lib/api'
@@ -31,6 +31,22 @@ export default function SitesScreen() {
   const [askResult, setAskResult] = useState<AskResult | null>(null)
   const [openingUrl, setOpeningUrl] = useState<string | null>(null)
   const router = useRouter()
+  // Set by Webstrology's Seek/Avoid boxes to open Ask a voice prefilled.
+  const { askSignId: askSignParam, askQuery: askQueryParam } = useLocalSearchParams<{ askSignId?: string; askQuery?: string }>()
+  // Keeps the profile load from replacing a voice Webstrology picked.
+  const askPrefilled = useRef(false)
+
+  useEffect(() => {
+    const signId = Number(askSignParam)
+    if (!SIGN_BY_ID[signId]) return
+    askPrefilled.current = true
+    setAddMode('ask')
+    setAskSignId(signId)
+    setAskQuestion(askQueryParam ?? '')
+    setAskResult(null)
+    setClassifyModalVisible(true)
+    router.setParams({ askSignId: '', askQuery: '' })
+  }, [askSignParam, askQueryParam, router])
 
   useFocusEffect(useCallback(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -40,7 +56,7 @@ export default function SitesScreen() {
         .then(({ data: p }) => {
           if (!p?.primary_zodaic_sign_id) return
           setUserSignId(p.primary_zodaic_sign_id)
-          setAskSignId(p.primary_zodaic_sign_id)
+          if (!askPrefilled.current) setAskSignId(p.primary_zodaic_sign_id)
         })
       const data = await fetchSites(user.id, filterSignId ?? undefined)
       setSites(data)
@@ -142,6 +158,7 @@ export default function SitesScreen() {
   }
 
   function handleOpenClassify() {
+    askPrefilled.current = false
     setClassifyUrl('')
     setAskQuestion('')
     setAskResult(null)

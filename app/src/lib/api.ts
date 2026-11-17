@@ -147,10 +147,19 @@ export interface PortAilsCompatibility {
   example: { title: string; url: string } | null
 }
 
+// The voice and news search a Seek/Avoid line points to; null on readings from
+// before 2026-11-17 or when the model gave nothing usable.
+export interface ReadingTopic {
+  sign_id: number
+  query: string
+}
+
 export interface PortAilsResult {
   compatibility: PortAilsCompatibility[]
   best_advice: string
   avoid_advice: string
+  best_topic: ReadingTopic | null
+  avoid_topic: ReadingTopic | null
   reading_date: string
   generated_at: string
 }
@@ -187,7 +196,7 @@ export async function fetchWebstrologyReading(
 ): Promise<PortAilsResult | null> {
   const { data, error } = await supabase
     .from('webstrology_readings')
-    .select('zodaic_sign_id, reading_date, compatibility, best_advice, avoid_advice, generated_at')
+    .select('zodaic_sign_id, reading_date, compatibility, best_advice, avoid_advice, best_topic, avoid_topic, generated_at')
     .eq('zodaic_sign_id', zodaicSignId)
     .order('reading_date', { ascending: false })
     .limit(1)

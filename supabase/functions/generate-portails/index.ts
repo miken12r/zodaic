@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
 import { getOrCreateHoroscope } from '../_shared/horoscope.ts'
-import { buildWebstrologyPrompt, otherSignIds, scoreCompatibility, SIGN_NAMES, type NewsItem } from '../_shared/webstrologyPrompt.ts'
+import { buildWebstrologyPrompt, otherSignIds, parseTopic, scoreCompatibility, SIGN_NAMES, type NewsItem } from '../_shared/webstrologyPrompt.ts'
 
 // Returns a sign's Webstrology reading for today (America/Denver), generating and
 // storing it in webstrology_readings the first time it's asked for. The
@@ -17,7 +17,7 @@ const denverDate = (d = new Date()) =>
 const denverLongDate = (d = new Date()) =>
   new Intl.DateTimeFormat('en-US', { timeZone: 'America/Denver', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(d)
 
-const READING_COLUMNS = 'zodaic_sign_id, reading_date, compatibility, best_advice, avoid_advice, generated_at'
+const READING_COLUMNS = 'zodaic_sign_id, reading_date, compatibility, best_advice, avoid_advice, best_topic, avoid_topic, generated_at'
 
 async function findReading(supabase: SupabaseClient, signId: number, date: string) {
   const { data, error } = await supabase
@@ -109,7 +109,8 @@ async function generateReading(supabase: SupabaseClient, apiKey: string, signId:
   const { error: insertError } = await supabase
     .from('webstrology_readings')
     .upsert(
-      { zodaic_sign_id: signId, reading_date: today, compatibility, best_advice: result.best_advice, avoid_advice: result.avoid_advice, model: MODEL },
+      { zodaic_sign_id: signId, reading_date: today, compatibility, best_advice: result.best_advice, avoid_advice: result.avoid_advice,
+        best_topic: parseTopic(result.best_topic), avoid_topic: parseTopic(result.avoid_topic), model: MODEL },
       { onConflict: 'zodaic_sign_id,reading_date', ignoreDuplicates: true }
     )
   if (insertError) throw insertError

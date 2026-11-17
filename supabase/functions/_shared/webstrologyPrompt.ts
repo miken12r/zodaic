@@ -103,7 +103,8 @@ Instructions:
 2. Write a one-sentence reasoning for each sign in terms of today's internet content, naming a concrete story or trend from today's headlines where one fits.
 3. best_advice: one sentence of at most 30 words on what to seek online today, specific to today's news rather than generic, and different from yesterday's.
 4. avoid_advice: one sentence of at most 30 words on what to steer clear of today, also specific and different from yesterday's.
-5. The headlines are real news. Describe them accurately and at their own level of certainty. Never name or describe a story about crime, abuse, death, disaster, war, or an allegation against a named person anywhere in this reading; if such coverage matters to the advice, refer to it only generally (e.g. "heavy crime coverage").
+5. best_topic and avoid_topic: for each piece of advice, the sign whose content it is mainly about (sign_id, 1-12) and a 3-4 word news search query for the story or topic it points to (e.g. "COP31 draft decision"). The query should find today's coverage in a news search: concrete nouns, no sign names, no quotes. If the advice isn't about one sign or topic, pick the sign and story it comes closest to.
+6. The headlines are real news. Describe them accurately and at their own level of certainty. Never name or describe a story about crime, abuse, death, disaster, war, or an allegation against a named person anywhere in this reading; if such coverage matters to the advice, refer to it only generally (e.g. "heavy crime coverage").
 
 Respond with valid JSON only, no other text:
 {
@@ -111,7 +112,9 @@ Respond with valid JSON only, no other text:
     { "sign_id": <number>, "score": <0-100>, "reasoning": "<1 sentence>" }
   ],
   "best_advice": "<sentence>",
-  "avoid_advice": "<sentence>"
+  "avoid_advice": "<sentence>",
+  "best_topic": { "sign_id": <number>, "query": "<3-4 words>" },
+  "avoid_topic": { "sign_id": <number>, "query": "<3-4 words>" }
 }`
 }
 
@@ -134,4 +137,19 @@ export function scoreCompatibility(signId: number, modelRows: { sign_id: number;
     const score = Math.round(Math.min(100, Math.max(0, swung)))
     return { sign_id: id, score, label: labelFor(score), reasoning: c?.reasoning ?? '' }
   }).sort((a, b) => b.score - a.score)
+}
+
+export interface ReadingTopic { sign_id: number; query: string }
+
+// A Seek/Avoid topic from the model, or null if it isn't usable: the sign must be
+// one of the 12 and the query a short plain search (quotes stripped, at most 8 words).
+export function parseTopic(raw: unknown): ReadingTopic | null {
+  if (!raw || typeof raw !== 'object') return null
+  const { sign_id, query } = raw as { sign_id?: unknown; query?: unknown }
+  const signId = Number(sign_id)
+  if (!SIGN_NAMES[signId] || typeof query !== 'string') return null
+  const cleaned = query.replace(/["“”]/g, '').replace(/\s+/g, ' ').trim()
+  const words = cleaned.split(' ').filter(Boolean).length
+  if (cleaned.length < 3 || words > 8) return null
+  return { sign_id: signId, query: cleaned }
 }

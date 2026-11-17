@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef } from 'react'
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native'
 import { supabase } from '@/lib/supabase'
-import { fetchWebstrologyReading, PortAilsResult } from '@/lib/api'
-import { SIGN_BY_ID } from '@/constants/signs'
+import { fetchWebstrologyReading, PortAilsResult, ReadingTopic } from '@/lib/api'
+import { SIGN_BY_ID, ZODAIC_SIGNS, dropThe } from '@/constants/signs'
 import { useFocusEffect, useRouter } from 'expo-router'
 import SignDetailModal from '@/components/SignDetailModal'
 
@@ -69,6 +69,17 @@ export default function PortAilsScreen() {
     })
   }, []))
 
+  // Seek/Avoid open Sites → Ask a voice with the reading's voice and search terms.
+  // Older readings have no topic: use the sign the advice names (or the reader's
+  // own) and leave the search for them to type.
+  function handleAdviceTap(advice: string, topic: ReadingTopic | null) {
+    const signId = topic?.sign_id
+      ?? ZODAIC_SIGNS.find((s) => advice.includes(s.name) || advice.includes(dropThe(s.name)))?.id
+      ?? primarySignId
+    if (!signId) return
+    router.push({ pathname: '/(tabs)/sites', params: { askSignId: String(signId), askQuery: topic?.query ?? '' } })
+  }
+
   function handleSignTap(signId: number) {
     router.push({ pathname: '/(tabs)/discover', params: { signId: String(signId) } })
   }
@@ -113,11 +124,17 @@ export default function PortAilsScreen() {
         <Text style={styles.updatedText}>{formatUpdated(portails.generated_at)}</Text>
       )}
       <View style={styles.adviceCard}>
-        <Text style={styles.adviceLabel}>✦ Seek</Text>
-        <Text style={styles.adviceText}>{portails.best_advice}</Text>
+        <TouchableOpacity onPress={() => handleAdviceTap(portails.best_advice, portails.best_topic)}>
+          <Text style={styles.adviceLabel}>✦ Seek</Text>
+          <Text style={styles.adviceText}>{portails.best_advice}</Text>
+          <Text style={styles.adviceHint}>Ask a voice ›</Text>
+        </TouchableOpacity>
         <View style={styles.adviseDivider} />
-        <Text style={styles.adviceLabel}>✕ Avoid</Text>
-        <Text style={styles.adviceText}>{portails.avoid_advice}</Text>
+        <TouchableOpacity onPress={() => handleAdviceTap(portails.avoid_advice, portails.avoid_topic)}>
+          <Text style={styles.adviceLabel}>✕ Avoid</Text>
+          <Text style={styles.adviceText}>{portails.avoid_advice}</Text>
+          <Text style={styles.adviceHint}>Ask a voice ›</Text>
+        </TouchableOpacity>
       </View>
 
       <Text style={styles.sectionTitle}>Best Matches Today</Text>
@@ -213,6 +230,7 @@ const styles = StyleSheet.create({
   adviceCard: { backgroundColor: '#1a1a2e', borderRadius: 16, padding: 18, marginBottom: 24, borderWidth: 1, borderColor: '#2a2a3e' },
   adviceLabel: { color: '#9b59b6', fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
   adviceText: { color: '#ddd', fontSize: 14, lineHeight: 20 },
+  adviceHint: { color: '#9b59b6', fontSize: 12, marginTop: 6, textAlign: 'right' },
   adviseDivider: { height: 1, backgroundColor: '#2a2a3e', marginVertical: 12 },
   sectionTitle: { color: '#9b59b6', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, marginTop: 8 },
   matchCard: { backgroundColor: '#1a1a2e', borderRadius: 16, padding: 16, marginBottom: 10, borderWidth: 1 },
